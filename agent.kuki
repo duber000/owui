@@ -1,0 +1,104 @@
+# Agent — runs the LLM <-> MCP tool call loop
+# Uses stdlib/llm for OpenAI-compatible chat completions (works with Open WebUI)
+# Uses the MCP bridge for tool discovery and execution
+
+petiole main
+
+import "context"
+import "stdlib/json" as jsonpkg
+import "stdlib/llm"
+import "stdlib/string" as strpkg
+
+const defaultSystemPrompt = "You are a helpful assistant with access to a sandboxed Linux environment via tool calls. You can execute commands, read/write files, search, and manage the filesystem. Use these tools to help the user accomplish their goals. Be concise in your explanations but thorough in your tool usage."
+
+type Agent
+    Bridge reference Bridge
+    Config Config
+    SystemPrompt string
+    MaxRounds int
+    OnText func(string)
+    OnToolCall func(string, string)
+    OnToolResult func(string, string)
+
+type RunResult
+    Content string
+    Messages list of llm.Message
+    Rounds int
+
+func runAgent(ctx context.Context, a reference Agent, userPrompt string, history list of llm.Message) (reference RunResult, error)
+    maxRounds := a.MaxRounds
+    if maxRounds equals 0
+        maxRounds = 15
+
+    messages := append(empty list of llm.Message, many history)
+
+    # System prompt at conversation start
+    if len(messages) equals 0
+        sys := a.SystemPrompt
+        if sys equals ""
+            sys = defaultSystemPrompt
+        messages = append(messages, llm.Message{Role: "system", Content: sys})
+
+    messages = append(messages, llm.Message{Role: "user", Content: userPrompt})
+
+    # Get tools from MCP bridge (discovered at connect time)
+    tools := bridgeTools(a.Bridge)
+
+    for round from 0 to maxRounds
+        # Build the LLM client for this round
+        client := llm.New("")
+            |> llm.Model(a.Config.Model)
+            |> llm.BaseURL(a.Config.WebUIURL)
+            |> llm.Path("/api/chat/completions")
+            |> llm.APIKey(a.Config.WebUIAPIKey)
+            |> llm.Messages(messages)
+
+        # Add discovered MCP tools
+        for t in tools
+            client = llm.AddTool(client, t.Function.Name, t.Function.Description, t.Function.Parameters)
+
+        # Enable streaming if a handler is provided
+        if a.OnText isnt empty
+            client = llm.Stream(client, a.OnText)
+
+        if len(tools) > 0
+            client = llm.ToolChoiceAuto(client)
+
+        # Send request (now tool calls and streaming work together!)
+        comp := llm.SendRaw(client) onerr return empty, error "LLM request failed (round {round}): {error}"
+
+        content := llm.GetContent(comp)
+
+        # Note: OnText was already called during streaming if enabled.
+
+        # Check for tool calls
+        if llm.HasToolCalls(comp)
+            toolCalls := llm.GetToolCalls(comp)
+
+            # Add assistant message with tool calls to history
+            messages = append(messages, llm.Message{Role: "assistant", Content: content, ToolCalls: toolCalls})
+
+            for _, tc in toolCalls
+                if a.OnToolCall isnt empty
+                    a.OnToolCall(tc.Function.Name, tc.Function.Arguments)
+
+                toolResult := callBridgeTool(ctx, a.Bridge, tc.Function.Name, tc.Function.Arguments) onerr
+                    toolResult = "ERROR: {error}"
+
+                if a.OnToolResult isnt empty
+                    a.OnToolResult(tc.Function.Name, truncateStr(toolResult, 500))
+
+                # Add tool result as a message
+                messages = append(messages, llm.Message{Role: "tool", Content: toolResult, ToolCallID: tc.ID})
+
+            continue
+
+        # No tool calls — done
+        return reference of RunResult{Content: content, Messages: messages, Rounds: round + 1}, empty
+
+    return empty, error "agent hit max rounds ({maxRounds}) without completing"
+
+func truncateStr(s string, n int) string
+    if len(s) <= n
+        return s
+    return s[:n] + "..."

@@ -1,0 +1,311 @@
+# local_tools.kuki — built-in sandboxed tools (mini-claude-code mode)
+#
+# File ops:   stdlib/sandbox (os.Root kernel-level path confinement)
+# Net filter: stdlib/netguard (IP allow/block with DNS rebinding protection)
+# Shell cmds: stdlib/shell with an explicit command allowlist
+#
+# Tools exposed to the LLM:
+#   read_file, write_file, list_dir, search_files, grep_files, run_command
+
+petiole main
+
+import "os"
+import "path/filepath"
+import "stdlib/json" as jsonpkg
+import "stdlib/llm"
+import "stdlib/netguard"
+import "stdlib/sandbox"
+import "stdlib/shell"
+import "stdlib/string" as strpkg
+
+func defaultCmdAllowList() list of string
+    return list of string{
+        "cargo", "cat", "cp", "diff", "echo", "env", "find", "git",
+        "go", "grep", "head", "ls", "make", "mkdir", "mv", "node",
+        "npm", "pip3", "pwd", "python3", "rm", "sort", "tail", "touch",
+        "uniq", "wc", "which",
+    }
+
+# LocalTools holds the sandbox root and optional network guard.
+type LocalTools
+    Box         sandbox.Root
+    Guard       netguard.Guard
+    HasGuard    bool
+    AllowedCmds map of string to bool
+
+# buildLocalTools initialises sandbox + optional netguard from Config.
+# Defaults sandbox root to the process CWD when SandboxDir is unset.
+func buildLocalTools(cfg Config) (LocalTools, error)
+    lt := LocalTools{AllowedCmds: make(map of string to bool)}
+
+    sandboxDir := cfg.SandboxDir
+    if sandboxDir equals ""
+        cwd := os.Getwd() onerr explain "sandbox cwd"
+        sandboxDir = cwd
+
+    box := sandbox.New(sandboxDir) onerr explain "sandbox"
+    lt.Box = box
+
+    if len(cfg.IPAllowList) > 0
+        g := netguard.NewAllow(cfg.IPAllowList) onerr explain "netguard allow"
+        lt.Guard = g
+        lt.HasGuard = true
+    else if len(cfg.IPBlockList) > 0
+        g := netguard.NewBlock(cfg.IPBlockList) onerr explain "netguard block"
+        lt.Guard = g
+        lt.HasGuard = true
+
+    allowed := cfg.CmdAllowList
+    if len(allowed) equals 0
+        allowed = defaultCmdAllowList()
+    for cmd in allowed
+        lt.AllowedCmds[cmd] = true
+
+    return lt, empty
+
+func closeLocalTools(lt LocalTools) error
+    return sandbox.Close(lt.Box)
+
+# registerLocalTools attaches built-in tools to an existing Bridge.
+func registerLocalTools(b reference Bridge, cfg Config) error
+    lt := buildLocalTools(cfg) onerr return
+    b.LocalTools = lt
+    for _, name in list of string{"read_file", "write_file", "list_dir", "search_files", "grep_files", "run_command"}
+        b.LocalToolNames[name] = true
+    return empty
+
+# ---- JSON schema helpers ----
+
+func strProp(desc string) any
+    p := make(map of string to any)
+    p["type"] = "string"
+    p["description"] = desc
+    return p
+
+func toolSchema(props map of string to any, required list of string) any
+    s := make(map of string to any)
+    s["type"] = "object"
+    s["properties"] = props
+    s["required"] = required
+    return s
+
+# ---- Tool registry ----
+
+func localToolDefs() list of llm.Tool
+    tools := make(list of llm.Tool, 0, 6)
+
+    readProps := make(map of string to any)
+    readProps["path"] = strProp("File path relative to sandbox root")
+    tools = append(tools, llm.Tool{
+        Type: "function",
+        Function: llm.ToolFunction{
+        Name: "read_file",
+        Description: "Read the contents of a file within the sandbox",
+        Parameters: toolSchema(readProps, list of string{"path"}),
+    },
+    })
+
+    writeProps := make(map of string to any)
+    writeProps["path"] = strProp("File path relative to sandbox root")
+    writeProps["content"] = strProp("Content to write")
+    tools = append(tools, llm.Tool{
+        Type: "function",
+        Function: llm.ToolFunction{
+        Name: "write_file",
+        Description: "Write or overwrite a file within the sandbox",
+        Parameters: toolSchema(writeProps, list of string{"path", "content"}),
+    },
+    })
+
+    listProps := make(map of string to any)
+    listProps["path"] = strProp("Directory path relative to sandbox root (default: .)")
+    tools = append(tools, llm.Tool{
+        Type: "function",
+        Function: llm.ToolFunction{
+        Name: "list_dir",
+        Description: "List files and directories within a sandbox directory",
+        Parameters: toolSchema(listProps, make(list of string, 0)),
+    },
+    })
+
+    searchProps := make(map of string to any)
+    searchProps["pattern"] = strProp("File name glob pattern (e.g. *.go, main.*)")
+    tools = append(tools, llm.Tool{
+        Type: "function",
+        Function: llm.ToolFunction{
+        Name: "search_files",
+        Description: "Search for files matching a name pattern within the sandbox",
+        Parameters: toolSchema(searchProps, list of string{"pattern"}),
+    },
+    })
+
+    grepProps := make(map of string to any)
+    grepProps["pattern"] = strProp("Regex or literal text to search for")
+    grepProps["path"] = strProp("Path within sandbox to search (default: .)")
+    tools = append(tools, llm.Tool{
+        Type: "function",
+        Function: llm.ToolFunction{
+        Name: "grep_files",
+        Description: "Search file contents for a pattern within the sandbox",
+        Parameters: toolSchema(grepProps, list of string{"pattern"}),
+    },
+    })
+
+    argsItem := make(map of string to any)
+    argsItem["type"] = "string"
+    argsArr := make(map of string to any)
+    argsArr["type"] = "array"
+    argsArr["items"] = argsItem
+    argsArr["description"] = "Command arguments"
+    runProps := make(map of string to any)
+    runProps["cmd"] = strProp("Command name — allowed: cargo cat cp diff echo find git go grep head ls make mkdir mv node npm pip3 pwd python3 rm sort tail touch uniq wc which")
+    runProps["args"] = argsArr
+    tools = append(tools, llm.Tool{
+        Type: "function",
+        Function: llm.ToolFunction{
+        Name: "run_command",
+        Description: "Run an allowlisted shell command in the sandbox directory",
+        Parameters: toolSchema(runProps, list of string{"cmd"}),
+    },
+    })
+
+    return tools
+
+# ---- Tool dispatch ----
+
+func dispatchLocalTool(lt LocalTools, name string, argsJSON string) (string, error)
+    switch name
+        when "read_file"
+            return localReadFile(lt, argsJSON)
+        when "write_file"
+            return localWriteFile(lt, argsJSON)
+        when "list_dir"
+            return localListDir(lt, argsJSON)
+        when "search_files"
+            return localSearchFiles(lt, argsJSON)
+        when "grep_files"
+            return localGrepFiles(lt, argsJSON)
+        when "run_command"
+            return localRunCommand(lt, argsJSON)
+        otherwise
+            return "", error "unknown local tool: {name}"
+
+# ---- Arg structs ----
+
+type readFileArgs
+    Path string as "path"
+
+type writeFileArgs
+    Path string as "path"
+    Content string as "content"
+
+type listDirArgs
+    Path string as "path"
+
+type searchFilesArgs
+    Pattern string as "pattern"
+
+type grepFilesArgs
+    Pattern string as "pattern"
+    Path string as "path"
+
+type runCommandArgs
+    Cmd string as "cmd"
+    Args list of string as "args"
+
+# ---- Implementations ----
+
+func localReadFile(lt LocalTools, argsJSON string) (string, error)
+    a := readFileArgs{}
+    jsonpkg.UnmarshalString(argsJSON, reference of a) onerr return "", error "read_file: bad args: {error}"
+    if a.Path equals ""
+        return "", error "read_file: missing path"
+    content := sandbox.ReadString(lt.Box, a.Path) onerr return "", error "read_file: {error}"
+    return content, empty
+
+func localWriteFile(lt LocalTools, argsJSON string) (string, error)
+    a := writeFileArgs{}
+    jsonpkg.UnmarshalString(argsJSON, reference of a) onerr return "", error "write_file: bad args: {error}"
+    if a.Path equals ""
+        return "", error "write_file: missing path"
+    sandbox.WriteString(lt.Box, a.Content, a.Path) onerr return "", error "write_file: {error}"
+    return "wrote {len(a.Content)} bytes to {a.Path}", empty
+
+func localListDir(lt LocalTools, argsJSON string) (string, error)
+    a := listDirArgs{}
+    if argsJSON isnt "" and argsJSON isnt "{}"
+        jsonpkg.UnmarshalString(argsJSON, reference of a) onerr return "", error "list_dir: bad args: {error}"
+    path := a.Path
+    if path equals ""
+        path = "."
+    names := sandbox.List(lt.Box, path) onerr return "", error "list_dir: {error}"
+    if len(names) equals 0
+        return "(empty)", empty
+    return strpkg.Join(names, "\n"), empty
+
+func localSearchFiles(lt LocalTools, argsJSON string) (string, error)
+    a := searchFilesArgs{}
+    jsonpkg.UnmarshalString(argsJSON, reference of a) onerr return "", error "search_files: bad args: {error}"
+    if a.Pattern equals ""
+        return "", error "search_files: missing pattern"
+    sandboxPath := sandbox.Path(lt.Box)
+    out := shell.New("find", sandboxPath, "-name", a.Pattern) |> shell.Execute()
+    raw := strpkg.TrimSpace(shell.GetOutput(out) as string)
+    if raw equals ""
+        return "(no matches)", empty
+    prefix := sandboxPath + "/"
+    lines := strpkg.Split(raw, "\n")
+    results := make(list of string, 0, len(lines))
+    for line in lines
+        if line isnt ""
+            results = append(results, strpkg.TrimPrefix(line, prefix))
+    return strpkg.Join(results, "\n"), empty
+
+func localGrepFiles(lt LocalTools, argsJSON string) (string, error)
+    a := grepFilesArgs{}
+    jsonpkg.UnmarshalString(argsJSON, reference of a) onerr return "", error "grep_files: bad args: {error}"
+    if a.Pattern equals ""
+        return "", error "grep_files: missing pattern"
+    sandboxPath := sandbox.Path(lt.Box)
+    searchPath := a.Path
+    if searchPath equals ""
+        searchPath = "."
+    fullPath := filepath.Join(sandboxPath, searchPath)
+    rel := filepath.Rel(sandboxPath, fullPath) onerr return "", error "grep_files: invalid path"
+    if strpkg.HasPrefix(rel, "..")
+        return "", error "grep_files: path escapes sandbox"
+    out := shell.New("grep", "-r", "-n", a.Pattern, fullPath) |> shell.Execute()
+    raw := strpkg.TrimSpace(shell.GetOutput(out) as string)
+    if raw equals ""
+        return "(no matches)", empty
+    prefix := sandboxPath + "/"
+    lines := strpkg.Split(raw, "\n")
+    results := make(list of string, 0, len(lines))
+    for line in lines
+        if line isnt ""
+            results = append(results, strpkg.TrimPrefix(line, prefix))
+    return strpkg.Join(results, "\n"), empty
+
+func localRunCommand(lt LocalTools, argsJSON string) (string, error)
+    a := runCommandArgs{}
+    jsonpkg.UnmarshalString(argsJSON, reference of a) onerr return "", error "run_command: bad args: {error}"
+    if a.Cmd equals ""
+        return "", error "run_command: missing cmd"
+    _, ok := lt.AllowedCmds[a.Cmd]
+    if not ok
+        return "", error "run_command: '{a.Cmd}' is not in the allowed command list"
+    sandboxPath := sandbox.Path(lt.Box)
+    out := shell.New(a.Cmd, many a.Args) |> shell.Dir(sandboxPath) |> shell.Execute()
+    stdout := strpkg.TrimSpace(shell.GetOutput(out) as string)
+    stderr := strpkg.TrimSpace(shell.GetError(out) as string)
+    combined := stdout
+    if stderr isnt ""
+        if combined isnt ""
+            combined = "{combined}\n[stderr]\n{stderr}"
+        else
+            combined = "[stderr]\n{stderr}"
+    if combined equals ""
+        combined = "(no output)"
+    if not shell.Success(out)
+        return combined, error "exited {shell.ExitCode(out)}"
+    return combined, empty

@@ -1,0 +1,92 @@
+# Config — loads settings from file + environment variables
+# Priority: env vars > config file > defaults
+
+petiole main
+
+import "os"
+import "path/filepath"
+import "stdlib/env"
+import "stdlib/files"
+import "stdlib/json" as jsonpkg
+
+type MCPServerConfig
+    URL string as "url"
+    APIKey string as "api_key"
+
+type Config
+    WebUIURL string as "webui_url"
+    WebUIAPIKey string as "webui_api_key"
+    Model string as "model"
+    MCPServers map of string to MCPServerConfig as "mcp_servers"
+    TerminalMCPURL string as "terminal_mcp_url"
+    TerminalMCPAPIKey string as "terminal_mcp_api_key"
+    MaxToolRounds int as "max_tool_rounds"
+    SandboxDir string as "sandbox_dir"
+    IPAllowList list of string as "ip_allow"
+    IPBlockList list of string as "ip_block"
+    CmdAllowList list of string as "cmd_allow"
+
+func defaultConfigPath() string
+    home, _ := os.UserHomeDir()
+    return filepath.Join(home, ".config", "owui", "config.json")
+
+func loadConfig() Config
+    cfg := Config{
+        WebUIURL: "http://localhost:3000",
+        TerminalMCPURL: "http://127.0.0.1:9000/mcp",
+        Model: "llama3.1",
+        MaxToolRounds: 15,
+        MCPServers: make(map of string to MCPServerConfig),
+        IPAllowList: make(list of string, 0),
+        IPBlockList: make(list of string, 0),
+        CmdAllowList: make(list of string, 0),
+    }
+
+    # Try loading from config file
+    data := files.ReadString(defaultConfigPath()) onerr ""
+    if data isnt ""
+        jsonpkg.UnmarshalString(data, reference of cfg) onerr ""
+
+    if cfg.MCPServers equals empty
+        cfg.MCPServers = make(map of string to MCPServerConfig)
+
+    # Environment variables override file settings
+    v := env.GetOr("OWUI_WEBUI_URL", "")
+    if v isnt ""
+        cfg.WebUIURL = v
+
+    v = env.GetOr("OWUI_WEBUI_API_KEY", "")
+    if v isnt ""
+        cfg.WebUIAPIKey = v
+
+    v = env.GetOr("OWUI_MODEL", "")
+    if v isnt ""
+        cfg.Model = v
+
+    v = env.GetOr("OWUI_TERMINAL_MCP_URL", "")
+    if v isnt ""
+        cfg.TerminalMCPURL = v
+
+    v = env.GetOr("OWUI_TERMINAL_MCP_API_KEY", "")
+    if v isnt ""
+        cfg.TerminalMCPAPIKey = v
+
+    if cfg.TerminalMCPURL isnt ""
+        cfg.MCPServers["terminal"] = MCPServerConfig{URL: cfg.TerminalMCPURL, APIKey: cfg.TerminalMCPAPIKey}
+
+    v = env.GetOr("OWUI_SANDBOX_DIR", "")
+    if v isnt ""
+        cfg.SandboxDir = v
+
+    return cfg
+
+func saveConfig(cfg Config) error
+    path := defaultConfigPath()
+    os.MkdirAll(filepath.Dir(path), 0700) onerr return error "{error}"
+    files.Write(cfg, path) onerr return
+    return empty
+
+func validateConfig(cfg Config) error
+    if cfg.WebUIAPIKey equals ""
+        return error "Open WebUI API key required: set OWUI_WEBUI_API_KEY or run `owui configure`"
+    return empty

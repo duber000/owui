@@ -1,0 +1,138 @@
+# Bridge — MCP client that discovers tools and dispatches tool calls
+# Connects to multiple MCP servers via streamable HTTP transport
+# Converts between MCP tool format and stdlib/llm tool format
+
+petiole main
+
+import "context"
+import "stdlib/json" as jsonpkg
+import "stdlib/llm"
+import "stdlib/mcp"
+import "stdlib/string" as strpkg
+
+type ToolRoute
+    ServerName string
+    OriginalName string
+
+type BridgeServer
+    Name string
+    URL string
+    Session reference mcp.ClientSession
+    Tools list of mcp.ClientTool
+
+type Bridge
+    Servers        list of reference BridgeServer
+    ToolMap        map of string to ToolRoute
+    LocalTools     LocalTools
+    LocalToolNames map of string to bool
+
+func connectBridges(ctx context.Context, configs map of string to MCPServerConfig) (reference Bridge, error)
+    b := reference of Bridge{
+        Servers: make(list of reference BridgeServer, 0),
+        ToolMap: make(map of string to ToolRoute),
+        LocalToolNames: make(map of string to bool),
+    }
+
+    for name, cfg in configs
+        session, err := connectOne(ctx, cfg)
+        if err isnt empty
+            continue
+
+        server := reference of BridgeServer{Name: name, URL: cfg.URL, Session: session}
+
+        # Refresh tools for this server
+        tools, toolsErr := mcp.ListTools(ctx, session)
+        if toolsErr isnt empty
+            mcp.Close(session)
+            continue
+
+        server.Tools = tools
+        b.Servers = append(b.Servers, server)
+
+        # Map prefixed names to this server
+        for _, t in tools
+            prefixed := "{name}_{sanitizeName(t.Name)}"
+            b.ToolMap[prefixed] = ToolRoute{ServerName: name, OriginalName: t.Name}
+
+    return b, empty
+
+func connectOne(ctx context.Context, cfg MCPServerConfig) (reference mcp.ClientSession, error)
+    if cfg.APIKey isnt ""
+        return mcp.BearerConnect(ctx, cfg.URL, cfg.APIKey)
+
+    return mcp.Connect(ctx, cfg.URL)
+
+func closeBridges(b reference Bridge) error
+    for _, s in b.Servers
+        mcp.Close(s.Session)
+    if len(b.LocalToolNames) > 0
+        closeLocalTools(b.LocalTools) onerr return empty
+    return empty
+
+# bridgeTools returns all tools — built-in local tools first, then MCP-discovered.
+func bridgeTools(b reference Bridge) list of llm.Tool
+    tools := make(list of llm.Tool, 0, len(b.ToolMap) + len(b.LocalToolNames))
+
+    if len(b.LocalToolNames) > 0
+        tools = append(tools, many localToolDefs())
+
+    for _, s in b.Servers
+        for _, t in s.Tools
+            prefixed := "{s.Name}_{sanitizeName(t.Name)}"
+            tools = append(tools, llm.Tool{
+                Type: "function",
+                Function: llm.ToolFunction{
+                Name: prefixed,
+                Description: "({s.Name}) {t.Description}",
+                Parameters: t.InputSchema,
+            },
+            })
+
+    return tools
+
+func bridgeToolCount(b reference Bridge) int
+    count := len(b.LocalToolNames)
+    for _, s in b.Servers
+        count = count + len(s.Tools)
+    return count
+
+func bridgeToolNames(b reference Bridge) list of string
+    names := make(list of string, 0, len(b.ToolMap) + len(b.LocalToolNames))
+    for name, _ in b.LocalToolNames
+        names = append(names, name)
+    for prefixed, _ in b.ToolMap
+        names = append(names, prefixed)
+    return names
+
+# callBridgeTool dispatches a tool call — built-in tools first, then MCP servers.
+func callBridgeTool(ctx context.Context, b reference Bridge, name string, argsJSON string) (string, error)
+    _, isLocal := b.LocalToolNames[name]
+    if isLocal
+        return dispatchLocalTool(b.LocalTools, name, argsJSON)
+
+    route, ok := b.ToolMap[name]
+    if not ok
+        return "", error "unknown tool: {name}"
+
+    for _, s in b.Servers
+        if s.Name equals route.ServerName
+            args := make(map of string to any)
+            if argsJSON isnt "" and argsJSON isnt "{}"
+                jsonpkg.UnmarshalString(argsJSON, reference of args) onerr return "", error "invalid tool arguments: {error}"
+
+            result, err := mcp.CallTool(ctx, s.Session, route.OriginalName, args)
+            if err isnt empty
+                return "", err
+
+            if result.IsError
+                return "ERROR: {result.Text}", empty
+
+            return result.Text, empty
+
+    return "", error "server {route.ServerName} not connected"
+
+func sanitizeName(name string) string
+    result := strpkg.ReplaceAll(name, "/", "_")
+    result = strpkg.ReplaceAll(result, " ", "_")
+    result = strpkg.ReplaceAll(result, "-", "_")
+    return result

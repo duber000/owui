@@ -1,0 +1,426 @@
+# owui — CLI agent: Open WebUI + Open Terminal via MCP
+# Dispatches subcommands manually since the root command accepts
+# arbitrary args as a prompt (models/tools/health/configure/version
+# are subcommands, everything else is treated as a prompt)
+
+petiole main
+
+import "context"
+import "fmt"
+import "io"
+import "os"
+import "stdlib/cli"
+import "stdlib/fetch"
+import "stdlib/files"
+import "stdlib/input"
+import "stdlib/json" as jsonpkg
+import "stdlib/string" as strpkg
+
+var version string = "dev"
+
+# ANSI formatting helpers
+const ansiReset = "\x1b[0m"
+
+const ansiDim = "\x1b[2m"
+
+const ansiYellow = "\x1b[33m"
+
+const ansiBoldYellow = "\x1b[1;33m"
+
+const ansiBoldCyan = "\x1b[1;36m"
+
+const ansiRed = "\x1b[91m"
+
+const ansiGreen = "\x1b[32m"
+
+func dimFmt(s string) string
+    return "{ansiDim}{s}{ansiReset}"
+
+func toolFmt(s string) string
+    return "{ansiYellow}{s}{ansiReset}"
+
+func errFmt(s string) string
+    return "{ansiRed}{s}{ansiReset}"
+
+func greenFmt(s string) string
+    return "{ansiGreen}{s}{ansiReset}"
+
+func boldCyanFmt(s string) string
+    return "{ansiBoldCyan}{s}{ansiReset}"
+
+func boldYellowFmt(s string) string
+    return "{ansiBoldYellow}{s}{ansiReset}"
+
+# ---- Entrypoint ----
+
+func main()
+    args := os.Args[1:]
+
+    # Parse flags from args, separating them from positional args
+    flagModel := ""
+    flagChat := false
+    flagRaw := false
+    flagSystem := ""
+    positional := make(list of string, 0)
+
+    i := 0
+    for i < len(args)
+        arg := args[i]
+        if arg equals "-m" or arg equals "--model"
+            i = i + 1
+            if i < len(args)
+                flagModel = args[i]
+        else if strpkg.HasPrefix(arg, "--model=")
+            flagModel = strpkg.TrimPrefix(arg, "--model=")
+        else if arg equals "-c" or arg equals "--chat"
+            flagChat = true
+        else if arg equals "--raw"
+            flagRaw = true
+        else if arg equals "-S" or arg equals "--system"
+            i = i + 1
+            if i < len(args)
+                flagSystem = args[i]
+        else if strpkg.HasPrefix(arg, "--system=")
+            flagSystem = strpkg.TrimPrefix(arg, "--system=")
+        else if arg equals "-h" or arg equals "--help"
+            printUsage()
+            return
+        else
+            positional = append(positional, arg)
+        i = i + 1
+
+    # Dispatch subcommands
+    if len(positional) > 0
+        cmd := positional[0]
+        if cmd equals "models"
+            cmdListModels() onerr
+                cli.Fatal(errFmt("error: {error}"))
+
+            return
+        if cmd equals "tools"
+            cmdListTools() onerr
+                cli.Fatal(errFmt("error: {error}"))
+
+            return
+        if cmd equals "health"
+            cmdHealth() onerr
+                cli.Fatal(errFmt("error: {error}"))
+
+            return
+        if cmd equals "configure"
+            cmdConfigure() onerr
+                cli.Fatal(errFmt("error: {error}"))
+
+            return
+        if cmd equals "version"
+            print("owui {version}")
+            return
+
+    # Default: agent mode
+    cmdRun(positional, flagModel, flagChat, flagRaw, flagSystem) onerr
+        cli.Fatal(errFmt("error: {error}"))
+
+# ---- Agent mode ----
+
+func cmdRun(positional list of string, flagModel string, flagChat bool, flagRaw bool, flagSystem string) error
+    cfg := loadConfig()
+    if flagModel isnt ""
+        cfg.Model = flagModel
+    validateConfig(cfg) onerr return
+
+    ctx := context.Background()
+
+    bridge := connectBridges(ctx, cfg.MCPServers) onerr return error "connecting to MCP servers: {error}"
+    defer closeBridges(bridge)
+
+    registerLocalTools(bridge, cfg) onerr
+        fmt.Fprint(os.Stderr, "{dimFmt("warning: local tools unavailable: {error}")}\n")
+
+    if isTTYErr()
+        sandboxLabel := if cfg.SandboxDir isnt "" then cfg.SandboxDir else "cwd"
+        fmt.Fprint(os.Stderr, "{dimFmt("tools:")} {dimFmt("{bridgeToolCount(bridge)} available | sandbox: {sandboxLabel}")}\n")
+
+    a := reference of Agent{Bridge: bridge, Config: cfg, MaxRounds: cfg.MaxToolRounds}
+
+    if flagSystem isnt ""
+        a.SystemPrompt = flagSystem
+
+    # Load AGENTS.md from cwd if present — gives the LLM project context
+    agentsDoc := files.ReadString("AGENTS.md") onerr ""
+    if agentsDoc isnt ""
+        base := a.SystemPrompt
+        if base equals ""
+            base = defaultSystemPrompt
+        a.SystemPrompt = "{base}\n\n# Project Context (AGENTS.md)\n\n{agentsDoc}"
+        if isTTYErr()
+            fmt.Fprint(os.Stderr, "{dimFmt("Loaded AGENTS.md from current directory")}\n")
+
+    prompt := gatherPrompt(positional)
+
+    # Interactive chat
+    if flagChat
+        runChat(ctx, a, prompt)
+        return empty
+
+    # Pipe / one-shot
+    if prompt equals ""
+        return error "no prompt provided — use -c for interactive chat"
+
+    isTTY := isTTYOut()
+
+    if isTTY
+        a.OnToolCall = func(name string, toolArgs string)
+            fmt.Fprint(os.Stderr, "{toolFmt("-> {name}")} {dimFmt(truncateFmt(toolArgs, 80))}\n")
+
+        a.OnToolResult = func(name string, result string)
+            fmt.Fprint(os.Stderr, "{toolFmt("<- {name}")} {dimFmt(truncateFmt(result, 120))}\n")
+
+    a.OnText = func(chunk string)
+        if isTTY and not flagRaw
+            fmt.Print(chunk)
+
+    result := runAgent(ctx, a, prompt, empty list of llm.Message) onerr return
+
+    if isTTY and not flagRaw
+        fmt.Println()
+    else
+        fmt.Print(result.Content)
+
+    if isTTY
+        fmt.Fprint(os.Stderr, "{dimFmt("({result.Rounds} tool rounds)")}\n")
+
+    return empty
+
+# ---- Subcommands ----
+
+type ModelEntry
+    ID string as "id"
+    Name string as "name"
+
+type ModelsResponse
+    Data list of ModelEntry as "data"
+
+func cmdListModels() error
+    cfg := loadConfig()
+    if cfg.WebUIAPIKey equals ""
+        return error "Open WebUI API key required"
+
+    url := "{strpkg.TrimRight(cfg.WebUIURL, "/")}/api/models"
+    resp := fetch.New(url) |> fetch.BearerAuth(cfg.WebUIAPIKey) |> fetch.Do() onerr return
+
+    defer resp.Body.Close()
+
+    if resp.StatusCode isnt 200
+        body := fetch.Bytes(resp) onerr return error "HTTP {resp.StatusCode}"
+        return error "HTTP {resp.StatusCode}: {body as string}"
+
+    models := ModelsResponse{}
+    jsonpkg.UnmarshalRead(resp.Body, reference of models) onerr return
+
+    print(boldCyanFmt("Available models:"))
+    for _, m in models.Data
+        name := m.Name
+        if name equals ""
+            name = m.ID
+        print("  {name} {dimFmt("({m.ID})")}")
+
+    return empty
+
+func cmdListTools() error
+    cfg := loadConfig()
+    ctx := context.Background()
+
+    bridge := connectBridges(ctx, cfg.MCPServers) onerr return
+    defer closeBridges(bridge)
+
+    registerLocalTools(bridge, cfg) onerr return
+
+    print(boldYellowFmt("Available tools:"))
+    for _, name in bridgeToolNames(bridge)
+        print("  {name}")
+
+    return empty
+
+func cmdHealth() error
+    cfg := loadConfig()
+    ctx := context.Background()
+
+    # Open WebUI
+    fmt.Printf("Open WebUI  ({cfg.WebUIURL})  ")
+    if cfg.WebUIAPIKey isnt ""
+        url := "{strpkg.TrimRight(cfg.WebUIURL, "/")}/api/models"
+        resp, err := fetch.New(url) |> fetch.BearerAuth(cfg.WebUIAPIKey) |> fetch.Do()
+
+        if err isnt empty
+            fmt.Println(errFmt("x"), err)
+        else
+            resp.Body.Close()
+            if resp.StatusCode equals 200
+                fmt.Println(greenFmt("ok"))
+            else
+                fmt.Println(errFmt("x"), "HTTP {resp.StatusCode}")
+    else
+        fmt.Println(errFmt("x"), "no API key")
+
+    # MCP Servers
+    for name, mcfg in cfg.MCPServers
+        fmt.Printf("{name} MCP ({mcfg.URL})  ")
+        m := make(map of string to MCPServerConfig)
+        m[name] = mcfg
+        bridge, err := connectBridges(ctx, m)
+        if err isnt empty
+            fmt.Println(errFmt("x"), err)
+        else
+            fmt.Println(greenFmt("ok"), "{bridgeToolCount(bridge)} tools")
+            closeBridges(bridge)
+
+    return empty
+
+func cmdConfigure() error
+    cfg := loadConfig()
+
+    v := input.ReadLine("Open WebUI URL [{cfg.WebUIURL}]: ") onerr ""
+    if v isnt ""
+        cfg.WebUIURL = v
+
+    v = input.ReadLine("Open WebUI API Key [{maskKey(cfg.WebUIAPIKey)}]: ") onerr ""
+    if v isnt ""
+        cfg.WebUIAPIKey = v
+
+    v = input.ReadLine("Model [{cfg.Model}]: ") onerr ""
+    if v isnt ""
+        cfg.Model = v
+
+    v = input.ReadLine("terminal MCP URL [{cfg.TerminalMCPURL}]: ") onerr ""
+    if v isnt ""
+        cfg.TerminalMCPURL = v
+
+    v = input.ReadLine("terminal MCP API Key [{maskKey(cfg.TerminalMCPAPIKey)}]: ") onerr ""
+    if v isnt ""
+        cfg.TerminalMCPAPIKey = v
+
+    v = input.ReadLine("Sandbox directory [{cfg.SandboxDir}]: ") onerr ""
+    if v isnt ""
+        cfg.SandboxDir = v
+
+    saveConfig(cfg) onerr return
+    print(greenFmt("Saved to {defaultConfigPath()}"))
+    return empty
+
+# ---- Interactive chat (simple readline loop) ----
+
+func runChat(ctx context.Context, a reference Agent, initialPrompt string)
+    history := empty list of llm.Message
+    prompt := initialPrompt
+
+    print(dimFmt("owui chat — model: {a.Config.Model} — type 'exit' to quit"))
+    print("")
+
+    for true
+        if prompt equals ""
+            prompt = input.ReadLine(boldCyanFmt("you> ")) onerr break
+            if prompt equals "exit" or prompt equals "quit"
+                break
+            if prompt equals ""
+                continue
+
+        a.OnToolCall = func(name string, toolArgs string)
+            fmt.Fprint(os.Stderr, "  {toolFmt("-> {name}")} {dimFmt(truncateFmt(toolArgs, 60))}\n")
+
+        a.OnToolResult = func(name string, result string)
+            fmt.Fprint(os.Stderr, "  {toolFmt("<- {name}")} {dimFmt(truncateFmt(result, 80))}\n")
+
+        # Stream response chunks; print the model prefix lazily on the first chunk
+        # so tool-call output (stderr) appears before the response line starts.
+        firstChunk := true
+        a.OnText = func(chunk string)
+            if firstChunk
+                fmt.Print("\n{dimFmt(a.Config.Model)}  ")
+                firstChunk = false
+            fmt.Print(chunk)
+
+        result := runAgent(ctx, a, prompt, history) onerr
+            print(errFmt("error: {error}"))
+            print("")
+            prompt = ""
+            continue
+
+        if firstChunk and result.Content isnt ""
+            # Streaming produced no chunks (e.g. buffered response) — print normally.
+            print("\n{dimFmt(a.Config.Model)}  {result.Content}")
+        else
+            fmt.Println()
+        if result.Rounds > 1
+            print(dimFmt("  ({result.Rounds} rounds)"))
+        print("")
+
+        history = result.Messages
+        prompt = ""
+
+# ---- Helpers ----
+
+func gatherPrompt(args list of string) string
+    prompt := ""
+
+    # Simple heuristic: assume not a terminal if TERM is empty and no args
+    if not isTerminal(os.Stdin) and len(args) equals 0
+        data, _ := io.ReadAll(os.Stdin)
+        prompt = strpkg.TrimSpace(data as string)
+
+    if len(args) > 0
+        argText := strpkg.Join(args, " ")
+        if prompt isnt ""
+            prompt = "{argText}\n\n{prompt}"
+        else
+            prompt = argText
+
+    return prompt
+
+func isTerminal(f reference os.File) bool
+    info, err := f.Stat()
+    if err isnt empty
+        return false
+    return (info.Mode() & 0x200000) isnt 0
+
+func isTTYOut() bool
+    return isTerminal(os.Stdout)
+
+func isTTYErr() bool
+    return isTerminal(os.Stderr)
+
+func maskKey(k string) string
+    if len(k) < 8
+        return "--------"
+    return "{k[:4]}...{k[len(k) - 4:]}"
+
+func truncateFmt(s string, n int) string
+    s = strpkg.ReplaceAll(s, "\n", " ")
+    if len(s) <= n
+        return s
+    return "{s[:n]}..."
+
+func printUsage()
+    print("owui — CLI agent: Open WebUI models + Open Terminal via MCP")
+    print("")
+    print("Usage:")
+    print("  owui [flags] [prompt]     Agent mode (one-shot or piped)")
+    print("  owui -c [prompt]          Interactive chat")
+    print("  owui models               List available models")
+    print("  owui tools                List MCP tools")
+    print("  owui health               Check connectivity")
+    print("  owui configure            Save configuration")
+    print("  owui version              Print version")
+    print("")
+    print("Flags:")
+    print("  -m, --model <model>       Override model")
+    print("  -c, --chat                Interactive chat mode")
+    print("  -S, --system <prompt>     Override system prompt")
+    print("  --raw                     Raw output (no formatting)")
+    print("")
+    print("Environment:")
+    print("  OWUI_WEBUI_URL            Open WebUI URL (default: http://localhost:3000)")
+    print("  OWUI_WEBUI_API_KEY        Open WebUI API key (required)")
+    print("  OWUI_MODEL                Model name (default: llama3.1)")
+    print("  OWUI_TERMINAL_MCP_URL     terminal MCP URL (default: http://127.0.0.1:9000/mcp)")
+    print("  OWUI_TERMINAL_MCP_API_KEY terminal MCP API key (optional, for authenticated servers)")
+    print("  OWUI_SANDBOX_DIR          sandbox root for built-in tools (default: cwd)")
