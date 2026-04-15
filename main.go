@@ -508,10 +508,10 @@ func validateConfig(cfg Config) error {
 //line local_tools.kuki:21
 func defaultCmdAllowList() []string {
 //line local_tools.kuki:22
-	return []string{"cargo", "cat", "cp", "diff", "echo", "env", "find", "git", "go", "grep", "head", "ls", "make", "mkdir", "mv", "node", "npm", "pip3", "pwd", "python3", "rm", "sort", "tail", "touch", "uniq", "wc", "which"}
+	return []string{"bd", "cat", "cp", "date", "diff", "echo", "find", "git", "grep", "head", "ls", "mkdir", "mv", "pwd", "rm", "sort", "tail", "touch", "uniq", "wc", "which"}
 }
 
-//line local_tools.kuki:30
+//line local_tools.kuki:29
 type LocalTools struct {
 	Box         sandbox.Root
 	Guard       netguard.Guard
@@ -519,526 +519,526 @@ type LocalTools struct {
 	AllowedCmds map[string]bool
 }
 
-//line local_tools.kuki:38
+//line local_tools.kuki:37
 func buildLocalTools(cfg Config) (LocalTools, error) {
-//line local_tools.kuki:39
+//line local_tools.kuki:38
 	lt := LocalTools{AllowedCmds: make(map[string]bool)}
-//line local_tools.kuki:41
+//line local_tools.kuki:40
 	sandboxDir := cfg.SandboxDir
-//line local_tools.kuki:42
+//line local_tools.kuki:41
 	if sandboxDir == "" {
-//line local_tools.kuki:43
+//line local_tools.kuki:42
 		cwd, err_9 := os.Getwd()
-//line local_tools.kuki:43
+//line local_tools.kuki:42
 		if err_9 != nil {
-//line local_tools.kuki:43
+//line local_tools.kuki:42
 			err_9 = fmt.Errorf("sandbox cwd: %w", err_9)
 			var _zero0 LocalTools
-//line local_tools.kuki:43
+//line local_tools.kuki:42
 			return _zero0, err_9
 		}
-//line local_tools.kuki:44
+//line local_tools.kuki:43
 		sandboxDir = cwd
 	}
-//line local_tools.kuki:46
+//line local_tools.kuki:45
 	box, err_10 := sandbox.New(sandboxDir)
-//line local_tools.kuki:46
+//line local_tools.kuki:45
 	if err_10 != nil {
-//line local_tools.kuki:46
+//line local_tools.kuki:45
 		err_10 = fmt.Errorf("sandbox: %w", err_10)
 		var _zero0 LocalTools
-//line local_tools.kuki:46
+//line local_tools.kuki:45
 		return _zero0, err_10
 	}
-//line local_tools.kuki:47
+//line local_tools.kuki:46
 	lt.Box = box
-//line local_tools.kuki:49
+//line local_tools.kuki:48
 	if len(cfg.IPAllowList) > 0 {
-//line local_tools.kuki:50
+//line local_tools.kuki:49
 		g, err_11 := netguard.NewAllow(cfg.IPAllowList)
-//line local_tools.kuki:50
+//line local_tools.kuki:49
 		if err_11 != nil {
-//line local_tools.kuki:50
+//line local_tools.kuki:49
 			err_11 = fmt.Errorf("netguard allow: %w", err_11)
 			var _zero0 LocalTools
-//line local_tools.kuki:50
+//line local_tools.kuki:49
 			return _zero0, err_11
 		}
-//line local_tools.kuki:51
+//line local_tools.kuki:50
 		lt.Guard = g
-//line local_tools.kuki:52
+//line local_tools.kuki:51
 		lt.HasGuard = true
 	} else if len(cfg.IPBlockList) > 0 {
-//line local_tools.kuki:54
+//line local_tools.kuki:53
 		g, err_12 := netguard.NewBlock(cfg.IPBlockList)
-//line local_tools.kuki:54
+//line local_tools.kuki:53
 		if err_12 != nil {
-//line local_tools.kuki:54
+//line local_tools.kuki:53
 			err_12 = fmt.Errorf("netguard block: %w", err_12)
 			var _zero0 LocalTools
-//line local_tools.kuki:54
+//line local_tools.kuki:53
 			return _zero0, err_12
 		}
-//line local_tools.kuki:55
+//line local_tools.kuki:54
 		lt.Guard = g
-//line local_tools.kuki:56
+//line local_tools.kuki:55
 		lt.HasGuard = true
 	}
-//line local_tools.kuki:58
+//line local_tools.kuki:57
 	allowed := cfg.CmdAllowList
-//line local_tools.kuki:59
+//line local_tools.kuki:58
 	if len(allowed) == 0 {
-//line local_tools.kuki:60
+//line local_tools.kuki:59
 		allowed = defaultCmdAllowList()
 	}
-//line local_tools.kuki:61
+//line local_tools.kuki:60
 	for _, cmd := range allowed {
-//line local_tools.kuki:62
+//line local_tools.kuki:61
 		lt.AllowedCmds[cmd] = true
 	}
-//line local_tools.kuki:64
+//line local_tools.kuki:63
 	return lt, nil
 }
 
-//line local_tools.kuki:66
+//line local_tools.kuki:65
 func closeLocalTools(lt LocalTools) error {
-//line local_tools.kuki:67
+//line local_tools.kuki:66
 	return sandbox.Close(lt.Box)
 }
 
-//line local_tools.kuki:70
+//line local_tools.kuki:69
 func registerLocalTools(b *Bridge, cfg Config) error {
-//line local_tools.kuki:71
+//line local_tools.kuki:70
 	lt, err_13 := buildLocalTools(cfg)
-//line local_tools.kuki:71
+//line local_tools.kuki:70
 	if err_13 != nil {
-//line local_tools.kuki:71
+//line local_tools.kuki:70
 		return err_13
 	}
-//line local_tools.kuki:72
+//line local_tools.kuki:71
 	b.LocalTools = lt
-//line local_tools.kuki:73
+//line local_tools.kuki:72
 	for _, name := range []string{"read_file", "write_file", "list_dir", "search_files", "grep_files", "run_command"} {
-//line local_tools.kuki:74
+//line local_tools.kuki:73
 		b.LocalToolNames[name] = true
 	}
-//line local_tools.kuki:75
+//line local_tools.kuki:74
 	return nil
 }
 
-//line local_tools.kuki:79
+//line local_tools.kuki:78
 func strProp(desc string) any {
-//line local_tools.kuki:80
+//line local_tools.kuki:79
 	p := make(map[string]any)
-//line local_tools.kuki:81
+//line local_tools.kuki:80
 	p["type"] = "string"
-//line local_tools.kuki:82
+//line local_tools.kuki:81
 	p["description"] = desc
-//line local_tools.kuki:83
+//line local_tools.kuki:82
 	return p
 }
 
-//line local_tools.kuki:85
+//line local_tools.kuki:84
 func toolSchema(props map[string]any, required []string) any {
-//line local_tools.kuki:86
+//line local_tools.kuki:85
 	s := make(map[string]any)
-//line local_tools.kuki:87
+//line local_tools.kuki:86
 	s["type"] = "object"
-//line local_tools.kuki:88
+//line local_tools.kuki:87
 	s["properties"] = props
-//line local_tools.kuki:89
+//line local_tools.kuki:88
 	s["required"] = required
-//line local_tools.kuki:90
+//line local_tools.kuki:89
 	return s
 }
 
-//line local_tools.kuki:94
+//line local_tools.kuki:93
 func localToolDefs() []llm.Tool {
-//line local_tools.kuki:95
+//line local_tools.kuki:94
 	tools := make([]llm.Tool, 0, 6)
-//line local_tools.kuki:97
+//line local_tools.kuki:96
 	readProps := make(map[string]any)
-//line local_tools.kuki:98
+//line local_tools.kuki:97
 	readProps["path"] = strProp("File path relative to sandbox root")
-//line local_tools.kuki:99
+//line local_tools.kuki:98
 	tools = append(tools, llm.Tool{Type: "function", Function: llm.ToolFunction{Name: "read_file", Description: "Read the contents of a file within the sandbox", Parameters: toolSchema(readProps, []string{"path"})}})
-//line local_tools.kuki:108
+//line local_tools.kuki:107
 	writeProps := make(map[string]any)
-//line local_tools.kuki:109
+//line local_tools.kuki:108
 	writeProps["path"] = strProp("File path relative to sandbox root")
-//line local_tools.kuki:110
+//line local_tools.kuki:109
 	writeProps["content"] = strProp("Content to write")
-//line local_tools.kuki:111
+//line local_tools.kuki:110
 	tools = append(tools, llm.Tool{Type: "function", Function: llm.ToolFunction{Name: "write_file", Description: "Write or overwrite a file within the sandbox", Parameters: toolSchema(writeProps, []string{"path", "content"})}})
-//line local_tools.kuki:120
+//line local_tools.kuki:119
 	listProps := make(map[string]any)
-//line local_tools.kuki:121
+//line local_tools.kuki:120
 	listProps["path"] = strProp("Directory path relative to sandbox root (default: .)")
-//line local_tools.kuki:122
+//line local_tools.kuki:121
 	tools = append(tools, llm.Tool{Type: "function", Function: llm.ToolFunction{Name: "list_dir", Description: "List files and directories within a sandbox directory", Parameters: toolSchema(listProps, make([]string, 0))}})
-//line local_tools.kuki:131
+//line local_tools.kuki:130
 	searchProps := make(map[string]any)
-//line local_tools.kuki:132
+//line local_tools.kuki:131
 	searchProps["pattern"] = strProp("File name glob pattern (e.g. *.go, main.*)")
-//line local_tools.kuki:133
+//line local_tools.kuki:132
 	tools = append(tools, llm.Tool{Type: "function", Function: llm.ToolFunction{Name: "search_files", Description: "Search for files matching a name pattern within the sandbox", Parameters: toolSchema(searchProps, []string{"pattern"})}})
-//line local_tools.kuki:142
+//line local_tools.kuki:141
 	grepProps := make(map[string]any)
-//line local_tools.kuki:143
+//line local_tools.kuki:142
 	grepProps["pattern"] = strProp("Regex or literal text to search for")
-//line local_tools.kuki:144
+//line local_tools.kuki:143
 	grepProps["path"] = strProp("Path within sandbox to search (default: .)")
-//line local_tools.kuki:145
+//line local_tools.kuki:144
 	tools = append(tools, llm.Tool{Type: "function", Function: llm.ToolFunction{Name: "grep_files", Description: "Search file contents for a pattern within the sandbox", Parameters: toolSchema(grepProps, []string{"pattern"})}})
-//line local_tools.kuki:154
+//line local_tools.kuki:153
 	argsItem := make(map[string]any)
-//line local_tools.kuki:155
+//line local_tools.kuki:154
 	argsItem["type"] = "string"
-//line local_tools.kuki:156
+//line local_tools.kuki:155
 	argsArr := make(map[string]any)
-//line local_tools.kuki:157
+//line local_tools.kuki:156
 	argsArr["type"] = "array"
-//line local_tools.kuki:158
+//line local_tools.kuki:157
 	argsArr["items"] = argsItem
-//line local_tools.kuki:159
+//line local_tools.kuki:158
 	argsArr["description"] = "Command arguments"
-//line local_tools.kuki:160
+//line local_tools.kuki:159
 	runProps := make(map[string]any)
+//line local_tools.kuki:160
+	runProps["cmd"] = strProp("Command name — allowed: bd cat cp date diff echo find git grep head ls mkdir mv pwd rm sort tail touch uniq wc which")
 //line local_tools.kuki:161
-	runProps["cmd"] = strProp("Command name — allowed: cargo cat cp diff echo find git go grep head ls make mkdir mv node npm pip3 pwd python3 rm sort tail touch uniq wc which")
-//line local_tools.kuki:162
 	runProps["args"] = argsArr
-//line local_tools.kuki:163
+//line local_tools.kuki:162
 	tools = append(tools, llm.Tool{Type: "function", Function: llm.ToolFunction{Name: "run_command", Description: "Run an allowlisted shell command in the sandbox directory", Parameters: toolSchema(runProps, []string{"cmd"})}})
-//line local_tools.kuki:172
+//line local_tools.kuki:171
 	return tools
 }
 
-//line local_tools.kuki:176
+//line local_tools.kuki:175
 func dispatchLocalTool(lt LocalTools, name string, argsJSON string) (string, error) {
-//line local_tools.kuki:177
+//line local_tools.kuki:176
 	switch name {
 	case "read_file":
-//line local_tools.kuki:179
+//line local_tools.kuki:178
 		return localReadFile(lt, argsJSON)
 	case "write_file":
-//line local_tools.kuki:181
+//line local_tools.kuki:180
 		return localWriteFile(lt, argsJSON)
 	case "list_dir":
-//line local_tools.kuki:183
+//line local_tools.kuki:182
 		return localListDir(lt, argsJSON)
 	case "search_files":
-//line local_tools.kuki:185
+//line local_tools.kuki:184
 		return localSearchFiles(lt, argsJSON)
 	case "grep_files":
-//line local_tools.kuki:187
+//line local_tools.kuki:186
 		return localGrepFiles(lt, argsJSON)
 	case "run_command":
-//line local_tools.kuki:189
+//line local_tools.kuki:188
 		return localRunCommand(lt, argsJSON)
 	default:
-//line local_tools.kuki:191
+//line local_tools.kuki:190
 		return "", fmt.Errorf("unknown local tool: %v", name)
 	}
 }
 
-//line local_tools.kuki:195
+//line local_tools.kuki:194
 type readFileArgs struct {
 	Path string `json:"path"`
 }
 
-//line local_tools.kuki:198
+//line local_tools.kuki:197
 type writeFileArgs struct {
 	Path    string `json:"path"`
 	Content string `json:"content"`
 }
 
-//line local_tools.kuki:202
+//line local_tools.kuki:201
 type listDirArgs struct {
 	Path string `json:"path"`
 }
 
-//line local_tools.kuki:205
+//line local_tools.kuki:204
 type searchFilesArgs struct {
 	Pattern string `json:"pattern"`
 }
 
-//line local_tools.kuki:208
+//line local_tools.kuki:207
 type grepFilesArgs struct {
 	Pattern string `json:"pattern"`
 	Path    string `json:"path"`
 }
 
-//line local_tools.kuki:212
+//line local_tools.kuki:211
 type runCommandArgs struct {
 	Cmd  string   `json:"cmd"`
 	Args []string `json:"args"`
 }
 
-//line local_tools.kuki:218
+//line local_tools.kuki:217
 func localReadFile(lt LocalTools, argsJSON string) (string, error) {
-//line local_tools.kuki:219
+//line local_tools.kuki:218
 	a := readFileArgs{}
-//line local_tools.kuki:220
-//line local_tools.kuki:220
+//line local_tools.kuki:219
+//line local_tools.kuki:219
 	err_14 := jsonpkg.UnmarshalString(argsJSON, &a)
-//line local_tools.kuki:220
+//line local_tools.kuki:219
 	if err_14 != nil {
-//line local_tools.kuki:220
+//line local_tools.kuki:219
 		return "", fmt.Errorf("read_file: bad args: %v", err_14)
 	}
-//line local_tools.kuki:221
+//line local_tools.kuki:220
 	if a.Path == "" {
-//line local_tools.kuki:222
+//line local_tools.kuki:221
 		return "", errors.New("read_file: missing path")
 	}
-//line local_tools.kuki:223
+//line local_tools.kuki:222
 	content, err_15 := sandbox.ReadString(lt.Box, a.Path)
-//line local_tools.kuki:223
+//line local_tools.kuki:222
 	if err_15 != nil {
-//line local_tools.kuki:223
+//line local_tools.kuki:222
 		return "", fmt.Errorf("read_file: %v", err_15)
 	}
-//line local_tools.kuki:224
+//line local_tools.kuki:223
 	return content, nil
 }
 
-//line local_tools.kuki:226
+//line local_tools.kuki:225
 func localWriteFile(lt LocalTools, argsJSON string) (string, error) {
-//line local_tools.kuki:227
+//line local_tools.kuki:226
 	a := writeFileArgs{}
-//line local_tools.kuki:228
-//line local_tools.kuki:228
+//line local_tools.kuki:227
+//line local_tools.kuki:227
 	err_16 := jsonpkg.UnmarshalString(argsJSON, &a)
-//line local_tools.kuki:228
+//line local_tools.kuki:227
 	if err_16 != nil {
-//line local_tools.kuki:228
+//line local_tools.kuki:227
 		return "", fmt.Errorf("write_file: bad args: %v", err_16)
 	}
-//line local_tools.kuki:229
+//line local_tools.kuki:228
 	if a.Path == "" {
-//line local_tools.kuki:230
+//line local_tools.kuki:229
 		return "", errors.New("write_file: missing path")
 	}
-//line local_tools.kuki:231
-//line local_tools.kuki:231
+//line local_tools.kuki:230
+//line local_tools.kuki:230
 	err_17 := sandbox.WriteString(lt.Box, a.Content, a.Path)
-//line local_tools.kuki:231
+//line local_tools.kuki:230
 	if err_17 != nil {
-//line local_tools.kuki:231
+//line local_tools.kuki:230
 		return "", fmt.Errorf("write_file: %v", err_17)
 	}
-//line local_tools.kuki:232
+//line local_tools.kuki:231
 	return fmt.Sprintf("wrote %v bytes to %v", len(a.Content), a.Path), nil
 }
 
-//line local_tools.kuki:234
+//line local_tools.kuki:233
 func localListDir(lt LocalTools, argsJSON string) (string, error) {
-//line local_tools.kuki:235
+//line local_tools.kuki:234
 	a := listDirArgs{}
-//line local_tools.kuki:236
+//line local_tools.kuki:235
 	if (argsJSON != "") && (argsJSON != "{}") {
-//line local_tools.kuki:237
-//line local_tools.kuki:237
+//line local_tools.kuki:236
+//line local_tools.kuki:236
 		err_18 := jsonpkg.UnmarshalString(argsJSON, &a)
-//line local_tools.kuki:237
+//line local_tools.kuki:236
 		if err_18 != nil {
-//line local_tools.kuki:237
+//line local_tools.kuki:236
 			return "", fmt.Errorf("list_dir: bad args: %v", err_18)
 		}
 	}
-//line local_tools.kuki:238
+//line local_tools.kuki:237
 	path := a.Path
-//line local_tools.kuki:239
+//line local_tools.kuki:238
 	if path == "" {
-//line local_tools.kuki:240
+//line local_tools.kuki:239
 		path = "."
 	}
-//line local_tools.kuki:241
+//line local_tools.kuki:240
 	names, err_19 := sandbox.List(lt.Box, path)
-//line local_tools.kuki:241
+//line local_tools.kuki:240
 	if err_19 != nil {
-//line local_tools.kuki:241
+//line local_tools.kuki:240
 		return "", fmt.Errorf("list_dir: %v", err_19)
 	}
-//line local_tools.kuki:242
+//line local_tools.kuki:241
 	if len(names) == 0 {
-//line local_tools.kuki:243
+//line local_tools.kuki:242
 		return "(empty)", nil
 	}
-//line local_tools.kuki:244
+//line local_tools.kuki:243
 	return strpkg.Join(names, "\n"), nil
 }
 
-//line local_tools.kuki:246
+//line local_tools.kuki:245
 func localSearchFiles(lt LocalTools, argsJSON string) (string, error) {
-//line local_tools.kuki:247
+//line local_tools.kuki:246
 	a := searchFilesArgs{}
-//line local_tools.kuki:248
-//line local_tools.kuki:248
+//line local_tools.kuki:247
+//line local_tools.kuki:247
 	err_20 := jsonpkg.UnmarshalString(argsJSON, &a)
-//line local_tools.kuki:248
+//line local_tools.kuki:247
 	if err_20 != nil {
-//line local_tools.kuki:248
+//line local_tools.kuki:247
 		return "", fmt.Errorf("search_files: bad args: %v", err_20)
 	}
-//line local_tools.kuki:249
+//line local_tools.kuki:248
 	if a.Pattern == "" {
-//line local_tools.kuki:250
+//line local_tools.kuki:249
 		return "", errors.New("search_files: missing pattern")
 	}
-//line local_tools.kuki:251
+//line local_tools.kuki:250
 	sandboxPath := sandbox.Path(lt.Box)
-//line local_tools.kuki:252
+//line local_tools.kuki:251
 	out := shell.Execute(shell.New("find", sandboxPath, "-name", a.Pattern))
-//line local_tools.kuki:253
+//line local_tools.kuki:252
 	raw := strpkg.TrimSpace(string(shell.GetOutput(out)))
-//line local_tools.kuki:254
+//line local_tools.kuki:253
 	if raw == "" {
-//line local_tools.kuki:255
+//line local_tools.kuki:254
 		return "(no matches)", nil
 	}
-//line local_tools.kuki:256
+//line local_tools.kuki:255
 	prefix := (sandboxPath + "/")
-//line local_tools.kuki:257
+//line local_tools.kuki:256
 	lines := strpkg.Split(raw, "\n")
-//line local_tools.kuki:258
+//line local_tools.kuki:257
 	results := make([]string, 0, len(lines))
-//line local_tools.kuki:259
+//line local_tools.kuki:258
 	for _, line := range lines {
-//line local_tools.kuki:260
+//line local_tools.kuki:259
 		if line != "" {
-//line local_tools.kuki:261
+//line local_tools.kuki:260
 			results = append(results, strpkg.TrimPrefix(line, prefix))
 		}
 	}
-//line local_tools.kuki:262
+//line local_tools.kuki:261
 	return strpkg.Join(results, "\n"), nil
 }
 
-//line local_tools.kuki:264
+//line local_tools.kuki:263
 func localGrepFiles(lt LocalTools, argsJSON string) (string, error) {
-//line local_tools.kuki:265
+//line local_tools.kuki:264
 	a := grepFilesArgs{}
-//line local_tools.kuki:266
-//line local_tools.kuki:266
+//line local_tools.kuki:265
+//line local_tools.kuki:265
 	err_21 := jsonpkg.UnmarshalString(argsJSON, &a)
-//line local_tools.kuki:266
+//line local_tools.kuki:265
 	if err_21 != nil {
-//line local_tools.kuki:266
+//line local_tools.kuki:265
 		return "", fmt.Errorf("grep_files: bad args: %v", err_21)
 	}
-//line local_tools.kuki:267
+//line local_tools.kuki:266
 	if a.Pattern == "" {
-//line local_tools.kuki:268
+//line local_tools.kuki:267
 		return "", errors.New("grep_files: missing pattern")
 	}
-//line local_tools.kuki:269
+//line local_tools.kuki:268
 	sandboxPath := sandbox.Path(lt.Box)
-//line local_tools.kuki:270
+//line local_tools.kuki:269
 	searchPath := a.Path
-//line local_tools.kuki:271
+//line local_tools.kuki:270
 	if searchPath == "" {
-//line local_tools.kuki:272
+//line local_tools.kuki:271
 		searchPath = "."
 	}
-//line local_tools.kuki:273
+//line local_tools.kuki:272
 	fullPath := filepath.Join(sandboxPath, searchPath)
-//line local_tools.kuki:274
+//line local_tools.kuki:273
 	rel, err_22 := filepath.Rel(sandboxPath, fullPath)
-//line local_tools.kuki:274
+//line local_tools.kuki:273
 	if err_22 != nil {
-//line local_tools.kuki:274
+//line local_tools.kuki:273
 		return "", errors.New("grep_files: invalid path")
 	}
-//line local_tools.kuki:275
+//line local_tools.kuki:274
 	if strpkg.HasPrefix(rel, "..") {
-//line local_tools.kuki:276
+//line local_tools.kuki:275
 		return "", errors.New("grep_files: path escapes sandbox")
 	}
-//line local_tools.kuki:277
+//line local_tools.kuki:276
 	out := shell.Execute(shell.New("grep", "-r", "-n", a.Pattern, fullPath))
-//line local_tools.kuki:278
+//line local_tools.kuki:277
 	raw := strpkg.TrimSpace(string(shell.GetOutput(out)))
-//line local_tools.kuki:279
+//line local_tools.kuki:278
 	if raw == "" {
-//line local_tools.kuki:280
+//line local_tools.kuki:279
 		return "(no matches)", nil
 	}
-//line local_tools.kuki:281
+//line local_tools.kuki:280
 	prefix := (sandboxPath + "/")
-//line local_tools.kuki:282
+//line local_tools.kuki:281
 	lines := strpkg.Split(raw, "\n")
-//line local_tools.kuki:283
+//line local_tools.kuki:282
 	results := make([]string, 0, len(lines))
-//line local_tools.kuki:284
+//line local_tools.kuki:283
 	for _, line := range lines {
-//line local_tools.kuki:285
+//line local_tools.kuki:284
 		if line != "" {
-//line local_tools.kuki:286
+//line local_tools.kuki:285
 			results = append(results, strpkg.TrimPrefix(line, prefix))
 		}
 	}
-//line local_tools.kuki:287
+//line local_tools.kuki:286
 	return strpkg.Join(results, "\n"), nil
 }
 
-//line local_tools.kuki:289
+//line local_tools.kuki:288
 func localRunCommand(lt LocalTools, argsJSON string) (string, error) {
-//line local_tools.kuki:290
+//line local_tools.kuki:289
 	a := runCommandArgs{}
-//line local_tools.kuki:291
-//line local_tools.kuki:291
+//line local_tools.kuki:290
+//line local_tools.kuki:290
 	err_23 := jsonpkg.UnmarshalString(argsJSON, &a)
-//line local_tools.kuki:291
+//line local_tools.kuki:290
 	if err_23 != nil {
-//line local_tools.kuki:291
+//line local_tools.kuki:290
 		return "", fmt.Errorf("run_command: bad args: %v", err_23)
 	}
-//line local_tools.kuki:292
+//line local_tools.kuki:291
 	if a.Cmd == "" {
-//line local_tools.kuki:293
+//line local_tools.kuki:292
 		return "", errors.New("run_command: missing cmd")
 	}
-//line local_tools.kuki:294
+//line local_tools.kuki:293
 	_, ok := lt.AllowedCmds[a.Cmd]
-//line local_tools.kuki:295
+//line local_tools.kuki:294
 	if !ok {
-//line local_tools.kuki:296
+//line local_tools.kuki:295
 		return "", fmt.Errorf("run_command: '%v' is not in the allowed command list", a.Cmd)
 	}
-//line local_tools.kuki:297
+//line local_tools.kuki:296
 	sandboxPath := sandbox.Path(lt.Box)
-//line local_tools.kuki:298
+//line local_tools.kuki:297
 	out := shell.Execute(shell.Dir(shell.New(a.Cmd, a.Args...), sandboxPath))
-//line local_tools.kuki:299
+//line local_tools.kuki:298
 	stdout := strpkg.TrimSpace(string(shell.GetOutput(out)))
-//line local_tools.kuki:300
+//line local_tools.kuki:299
 	stderr := strpkg.TrimSpace(string(shell.GetError(out)))
-//line local_tools.kuki:301
+//line local_tools.kuki:300
 	combined := stdout
-//line local_tools.kuki:302
+//line local_tools.kuki:301
 	if stderr != "" {
-//line local_tools.kuki:303
+//line local_tools.kuki:302
 		if combined != "" {
-//line local_tools.kuki:304
+//line local_tools.kuki:303
 			combined = fmt.Sprintf("%v\n[stderr]\n%v", combined, stderr)
 		} else {
-//line local_tools.kuki:306
+//line local_tools.kuki:305
 			combined = fmt.Sprintf("[stderr]\n%v", stderr)
 		}
 	}
-//line local_tools.kuki:307
+//line local_tools.kuki:306
 	if combined == "" {
-//line local_tools.kuki:308
+//line local_tools.kuki:307
 		combined = "(no output)"
 	}
-//line local_tools.kuki:309
+//line local_tools.kuki:308
 	if !shell.Success(out) {
-//line local_tools.kuki:310
+//line local_tools.kuki:309
 		return combined, fmt.Errorf("exited %v", shell.ExitCode(out))
 	}
-//line local_tools.kuki:311
+//line local_tools.kuki:310
 	return combined, nil
 }
 

@@ -20,10 +20,9 @@ import "stdlib/string" as strpkg
 
 func defaultCmdAllowList() list of string
     return list of string{
-        "cargo", "cat", "cp", "diff", "echo", "env", "find", "git",
-        "go", "grep", "head", "ls", "make", "mkdir", "mv", "node",
-        "npm", "pip3", "pwd", "python3", "rm", "sort", "tail", "touch",
-        "uniq", "wc", "which",
+        "bd", "cat", "cp", "date", "diff", "echo", "find", "git",
+        "grep", "head", "ls", "mkdir", "mv", "pwd", "rm", "sort",
+        "tail", "touch", "uniq", "wc", "which",
     }
 
 # LocalTools holds the sandbox root and optional network guard.
@@ -158,7 +157,7 @@ func localToolDefs() list of llm.Tool
     argsArr["items"] = argsItem
     argsArr["description"] = "Command arguments"
     runProps := make(map of string to any)
-    runProps["cmd"] = strProp("Command name — allowed: cargo cat cp diff echo find git go grep head ls make mkdir mv node npm pip3 pwd python3 rm sort tail touch uniq wc which")
+    runProps["cmd"] = strProp("Command name — allowed: bd cat cp date diff echo find git grep head ls mkdir mv pwd rm sort tail touch uniq wc which")
     runProps["args"] = argsArr
     tools = append(tools, llm.Tool{
         Type: "function",

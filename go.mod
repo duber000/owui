@@ -1,4 +1,4 @@
-module llm-cli
+module owui
 
 go 1.26.2
 
