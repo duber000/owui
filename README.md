@@ -1,16 +1,16 @@
-# owui — CLI agent: Open WebUI + Open Terminal via MCP
+# owui — CLI agent powered by Open WebUI + MCP
 
-A terminal-native agent that gets its brain from [Open WebUI](https://github.com/open-webui/open-webui) (LLM) and its hands from [Open Terminal](https://github.com/open-webui/open-terminal) (sandboxed shell), connected via the [Model Context Protocol](https://modelcontextprotocol.io).
+A terminal-native agent that uses [Open WebUI](https://github.com/open-webui/open-webui) for LLM inference and connects to any [MCP](https://modelcontextprotocol.io) servers for tools — [Open Terminal](https://github.com/open-webui/open-terminal), browser automation, custom services, whatever you wire up.
 
 ```
-┌─────────┐     tools (from MCP)       ┌──────────────┐
-│         │ ──── chat/completions ────→ │  Open WebUI   │
-│  owui   │ ←─── stream + tool_calls ── │  (LLM)        │
-│  (CLI)  │                             └───────────────┘
-│         │     MCP (streamable-http)   ┌───────────────┐
-│         │ ──── CallTool ────────────→ │ Open Terminal  │
-│         │ ←─── results ────────────── │ (MCP server)   │
-└─────────┘                             └───────────────┘
+┌─────────┐     chat/completions        ┌───────────────┐
+│         │ ────────────────────────→    │  Open WebUI    │
+│  owui   │ ←── stream + tool_calls ──  │  (LLM)         │
+│  (CLI)  │                             └────────────────┘
+│         │     MCP (streamable-http)   ┌────────────────┐
+│         │ ──── CallTool ────────────→ │  MCP Server(s)  │
+│         │ ←─── results ────────────── │  (any)          │
+└─────────┘                             └────────────────┘
           └── built-in sandboxed tools ─────────────────┘
                read_file / write_file / list_dir
                search_files / grep_files / run_command
@@ -147,7 +147,7 @@ local_tools.kuki   Built-in sandboxed tools — no MCP server required
 | `grep_files` | Search file contents by regex or literal text |
 | `run_command` | Run an allowlisted command in the sandbox directory |
 
-Default command allowlist: `cargo cat cp diff echo env find git go grep head ls make mkdir mv node npm pip3 pwd python3 rm sort tail touch uniq wc which`. Override with `cmd_allow` in the config file.
+Default command allowlist: `bd cat cp date diff echo find git grep head ls mkdir mv pwd rm sort tail touch uniq wc which`. Override with `cmd_allow` in the config file.
 
 ### Security
 
@@ -173,12 +173,12 @@ Tools from each server are prefixed with the server name (`terminal_execute_comm
 ## Prerequisites
 
 - Open WebUI running (provides the LLM via `/api/chat/completions`)
-- *(optional)* Open Terminal running with MCP enabled:
+- *(optional)* One or more MCP servers. For example, [Open Terminal](https://github.com/open-webui/open-terminal):
   ```bash
   pip install open-terminal[mcp]
   open-terminal mcp --transport streamable-http
   ```
-  Without Open Terminal, the built-in sandboxed tools are still available.
+  Without any MCP servers, the built-in sandboxed tools are still available.
 
 ## License
 
