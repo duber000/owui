@@ -6,7 +6,7 @@ write Kukicha syntax** (`and`/`or`/`not`, `list of T`, `onerr`, pipes, enums)
 and use Kukicha's stdlib (`stdlib/*`) over raw Go packages. Fall back to Go
 only when Kukicha has no equivalent.
 
-Run `kukicha init` once per project to set up `go.mod` and extract the stdlib
+When `kukicha init` is run, this file is created and the stdlib is extracted
 into `.kukicha/stdlib/`. Browse the source files there for full API details
 beyond what this reference covers.
 
@@ -521,6 +521,15 @@ data := loadConfig() onerr cli.Fatal("config error: {error}")
 
 **table** — Terminal tables: `New`, `AddRow`, `Print`, `PrintWithStyle` (`"plain"`, `"box"`, `"markdown"`)
 
+**color** — ANSI terminal colors: `Bold`, `Dim`, `Red`, `Green`, `Yellow`, `Blue`, `Cyan`, `Gray`, `BrightRed`, `Error`, `Warn`, `Success`, `Info`, `Muted`, `Enabled`, `SetEnabled`
+
+```kukicha
+print(color.Bold("Title"))
+print(color.Red("error: something went wrong"))
+print(color.Success("All tests passed"))
+color.SetEnabled(false)  # disable in tests
+```
+
 **env** — Typed env vars with onerr: `Get`, `GetOr`, `GetInt`, `GetBool`, `Set`, `All`
 
 **must** — Panic-on-error startup: `Env`, `EnvOr`, `EnvInt`, `EnvIntOr`, `True`, `NotEmpty`
@@ -557,7 +566,7 @@ users := db.Query(pool, "SELECT id, name FROM users WHERE active = $1", true)
     |> db.ScanAll(list of User{}) onerr panic "{error}"
 ```
 
-**sqlite** — SQLite convenience (WAL, foreign keys, busy timeout by default): `Open`, `OpenMemory`, `OpenWith`, `Pragma`, `Tables`, `TableExists`, `BatchExec`, `Backup`, `Dump`
+**sqlite** — SQLite convenience (WAL, foreign keys, busy timeout by default): `Open`, `OpenMemory`, `OpenWith`, `Pragma`, `Tables`, `TableExists`, `BatchExec`, `Backup`, `Dump`, `CreateFunction`, `CreateFunctionFloat`, `CreateFunctionInt`, `CreateFunctionBool`, `CreateBlobFunction`, `CreateBlobFunctionFloat`
 
 ```kukicha
 pool := sqlite.Open("/tmp/app.db") onerr panic "{error}"

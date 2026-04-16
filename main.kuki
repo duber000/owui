@@ -10,6 +10,7 @@ import "fmt"
 import "io"
 import "os"
 import "stdlib/cli"
+import "stdlib/color"
 import "stdlib/fetch"
 import "stdlib/files"
 import "stdlib/input"
@@ -17,39 +18,6 @@ import "stdlib/json" as jsonpkg
 import "stdlib/string" as strpkg
 
 var version string = "dev"
-
-# ANSI formatting helpers
-const ansiReset = "\x1b[0m"
-
-const ansiDim = "\x1b[2m"
-
-const ansiYellow = "\x1b[33m"
-
-const ansiBoldYellow = "\x1b[1;33m"
-
-const ansiBoldCyan = "\x1b[1;36m"
-
-const ansiRed = "\x1b[91m"
-
-const ansiGreen = "\x1b[32m"
-
-func dimFmt(s string) string
-    return "{ansiDim}{s}{ansiReset}"
-
-func toolFmt(s string) string
-    return "{ansiYellow}{s}{ansiReset}"
-
-func errFmt(s string) string
-    return "{ansiRed}{s}{ansiReset}"
-
-func greenFmt(s string) string
-    return "{ansiGreen}{s}{ansiReset}"
-
-func boldCyanFmt(s string) string
-    return "{ansiBoldCyan}{s}{ansiReset}"
-
-func boldYellowFmt(s string) string
-    return "{ansiBoldYellow}{s}{ansiReset}"
 
 # ---- Entrypoint ----
 
@@ -94,22 +62,22 @@ func main()
         cmd := positional[0]
         if cmd equals "models"
             cmdListModels() onerr
-                cli.Fatal(errFmt("error: {error}"))
+                cli.Fatal(color.BrightRed("error: {error}"))
 
             return
         if cmd equals "tools"
             cmdListTools() onerr
-                cli.Fatal(errFmt("error: {error}"))
+                cli.Fatal(color.BrightRed("error: {error}"))
 
             return
         if cmd equals "health"
             cmdHealth() onerr
-                cli.Fatal(errFmt("error: {error}"))
+                cli.Fatal(color.BrightRed("error: {error}"))
 
             return
         if cmd equals "configure"
             cmdConfigure() onerr
-                cli.Fatal(errFmt("error: {error}"))
+                cli.Fatal(color.BrightRed("error: {error}"))
 
             return
         if cmd equals "version"
@@ -118,7 +86,7 @@ func main()
 
     # Default: agent mode
     cmdRun(positional, flagModel, flagChat, flagRaw, flagSystem) onerr
-        cli.Fatal(errFmt("error: {error}"))
+        cli.Fatal(color.BrightRed("error: {error}"))
 
 # ---- Agent mode ----
 
@@ -134,11 +102,11 @@ func cmdRun(positional list of string, flagModel string, flagChat bool, flagRaw 
     defer closeBridges(bridge)
 
     registerLocalTools(bridge, cfg) onerr
-        fmt.Fprint(os.Stderr, "{dimFmt("warning: local tools unavailable: {error}")}\n")
+        fmt.Fprint(os.Stderr, "{color.Dim("warning: local tools unavailable: {error}")}\n")
 
     if isTTYErr()
         sandboxLabel := if cfg.SandboxDir isnt "" then cfg.SandboxDir else "cwd"
-        fmt.Fprint(os.Stderr, "{dimFmt("tools:")} {dimFmt("{bridgeToolCount(bridge)} available | sandbox: {sandboxLabel}")}\n")
+        fmt.Fprint(os.Stderr, "{color.Dim("tools:")} {color.Dim("{bridgeToolCount(bridge)} available | sandbox: {sandboxLabel}")}\n")
 
     a := reference of Agent{Bridge: bridge, Config: cfg, MaxRounds: cfg.MaxToolRounds}
 
@@ -153,7 +121,7 @@ func cmdRun(positional list of string, flagModel string, flagChat bool, flagRaw 
             base = defaultSystemPrompt
         a.SystemPrompt = "{base}\n\n# Project Context (AGENTS.md)\n\n{agentsDoc}"
         if isTTYErr()
-            fmt.Fprint(os.Stderr, "{dimFmt("Loaded AGENTS.md from current directory")}\n")
+            fmt.Fprint(os.Stderr, "{color.Dim("Loaded AGENTS.md from current directory")}\n")
 
     prompt := gatherPrompt(positional)
 
@@ -170,10 +138,10 @@ func cmdRun(positional list of string, flagModel string, flagChat bool, flagRaw 
 
     if isTTY
         a.OnToolCall = func(name string, toolArgs string)
-            fmt.Fprint(os.Stderr, "{toolFmt("-> {name}")} {dimFmt(truncateFmt(toolArgs, 80))}\n")
+            fmt.Fprint(os.Stderr, "{color.Yellow("-> {name}")} {color.Dim(truncateFmt(toolArgs, 80))}\n")
 
         a.OnToolResult = func(name string, result string)
-            fmt.Fprint(os.Stderr, "{toolFmt("<- {name}")} {dimFmt(truncateFmt(result, 120))}\n")
+            fmt.Fprint(os.Stderr, "{color.Yellow("<- {name}")} {color.Dim(truncateFmt(result, 120))}\n")
 
     a.OnText = func(chunk string)
         if isTTY and not flagRaw
@@ -182,12 +150,12 @@ func cmdRun(positional list of string, flagModel string, flagChat bool, flagRaw 
     result := runAgent(ctx, a, prompt, empty list of llm.Message) onerr return
 
     if isTTY and not flagRaw
-        fmt.Println()
+        print("")
     else
         fmt.Print(result.Content)
 
     if isTTY
-        fmt.Fprint(os.Stderr, "{dimFmt("({result.Rounds} tool rounds)")}\n")
+        fmt.Fprint(os.Stderr, "{color.Dim("({result.Rounds} tool rounds)")}\n")
 
     return empty
 
@@ -217,12 +185,12 @@ func cmdListModels() error
     models := ModelsResponse{}
     jsonpkg.UnmarshalRead(resp.Body, reference of models) onerr return
 
-    print(boldCyanFmt("Available models:"))
+    print(color.Bold(color.Cyan("Available models:")))
     for _, m in models.Data
         name := m.Name
         if name equals ""
             name = m.ID
-        print("  {name} {dimFmt("({m.ID})")}")
+        print("  {name} {color.Dim("({m.ID})")}")
 
     return empty
 
@@ -235,7 +203,7 @@ func cmdListTools() error
 
     registerLocalTools(bridge, cfg) onerr return
 
-    print(boldYellowFmt("Available tools:"))
+    print(color.Bold(color.Yellow("Available tools:")))
     for _, name in bridgeToolNames(bridge)
         print("  {name}")
 
@@ -246,32 +214,32 @@ func cmdHealth() error
     ctx := context.Background()
 
     # Open WebUI
-    fmt.Printf("Open WebUI  ({cfg.WebUIURL})  ")
+    fmt.Print("Open WebUI  ({cfg.WebUIURL})  ")
     if cfg.WebUIAPIKey isnt ""
         url := "{strpkg.TrimRight(cfg.WebUIURL, "/")}/api/models"
         resp, err := fetch.New(url) |> fetch.BearerAuth(cfg.WebUIAPIKey) |> fetch.Do()
 
         if err isnt empty
-            fmt.Println(errFmt("x"), err)
+            print("{color.BrightRed("x")} {err}")
         else
             resp.Body.Close()
             if resp.StatusCode equals 200
-                fmt.Println(greenFmt("ok"))
+                print(color.Green("ok"))
             else
-                fmt.Println(errFmt("x"), "HTTP {resp.StatusCode}")
+                print("{color.BrightRed("x")} HTTP {resp.StatusCode}")
     else
-        fmt.Println(errFmt("x"), "no API key")
+        print("{color.BrightRed("x")} no API key")
 
     # MCP Servers
     for name, mcfg in cfg.MCPServers
-        fmt.Printf("{name} MCP ({mcfg.URL})  ")
+        fmt.Print("{name} MCP ({mcfg.URL})  ")
         m := make(map of string to MCPServerConfig)
         m[name] = mcfg
         bridge, err := connectBridges(ctx, m)
         if err isnt empty
-            fmt.Println(errFmt("x"), err)
+            print("{color.BrightRed("x")} {err}")
         else
-            fmt.Println(greenFmt("ok"), "{bridgeToolCount(bridge)} tools")
+            print("{color.Green("ok")} {bridgeToolCount(bridge)} tools")
             closeBridges(bridge)
 
     return empty
@@ -304,7 +272,7 @@ func cmdConfigure() error
         cfg.SandboxDir = v
 
     saveConfig(cfg) onerr return
-    print(greenFmt("Saved to {defaultConfigPath()}"))
+    print(color.Green("Saved to {defaultConfigPath()}"))
     return empty
 
 # ---- Interactive chat (simple readline loop) ----
@@ -313,45 +281,45 @@ func runChat(ctx context.Context, a reference Agent, initialPrompt string)
     history := empty list of llm.Message
     prompt := initialPrompt
 
-    print(dimFmt("owui chat — model: {a.Config.Model} — type 'exit' to quit"))
+    print(color.Dim("owui chat — model: {a.Config.Model} — type 'exit' to quit"))
     print("")
 
     for true
         if prompt equals ""
-            prompt = input.ReadLine(boldCyanFmt("you> ")) onerr break
+            prompt = input.ReadLine(color.Bold(color.Cyan("you> "))) onerr break
             if prompt equals "exit" or prompt equals "quit"
                 break
             if prompt equals ""
                 continue
 
         a.OnToolCall = func(name string, toolArgs string)
-            fmt.Fprint(os.Stderr, "  {toolFmt("-> {name}")} {dimFmt(truncateFmt(toolArgs, 60))}\n")
+            fmt.Fprint(os.Stderr, "  {color.Yellow("-> {name}")} {color.Dim(truncateFmt(toolArgs, 60))}\n")
 
         a.OnToolResult = func(name string, result string)
-            fmt.Fprint(os.Stderr, "  {toolFmt("<- {name}")} {dimFmt(truncateFmt(result, 80))}\n")
+            fmt.Fprint(os.Stderr, "  {color.Yellow("<- {name}")} {color.Dim(truncateFmt(result, 80))}\n")
 
         # Stream response chunks; print the model prefix lazily on the first chunk
         # so tool-call output (stderr) appears before the response line starts.
         firstChunk := true
         a.OnText = func(chunk string)
             if firstChunk
-                fmt.Print("\n{dimFmt(a.Config.Model)}  ")
+                fmt.Print("\n{color.Dim(a.Config.Model)}  ")
                 firstChunk = false
             fmt.Print(chunk)
 
         result := runAgent(ctx, a, prompt, history) onerr
-            print(errFmt("error: {error}"))
+            print(color.BrightRed("error: {error}"))
             print("")
             prompt = ""
             continue
 
         if firstChunk and result.Content isnt ""
             # Streaming produced no chunks (e.g. buffered response) — print normally.
-            print("\n{dimFmt(a.Config.Model)}  {result.Content}")
+            print("\n{color.Dim(a.Config.Model)}  {result.Content}")
         else
-            fmt.Println()
+            print("")
         if result.Rounds > 1
-            print(dimFmt("  ({result.Rounds} rounds)"))
+            print(color.Dim("  ({result.Rounds} rounds)"))
         print("")
 
         history = result.Messages
