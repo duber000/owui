@@ -102,11 +102,11 @@ func cmdRun(positional list of string, flagModel string, flagChat bool, flagRaw 
     defer closeBridges(bridge)
 
     registerLocalTools(bridge, cfg) onerr
-        fmt.Fprint(os.Stderr, "{color.Dim("warning: local tools unavailable: {error}")}\n")
+        cli.Error(color.Dim("warning: local tools unavailable: {error}"))
 
     if isTTYErr()
         sandboxLabel := if cfg.SandboxDir isnt "" then cfg.SandboxDir else "cwd"
-        fmt.Fprint(os.Stderr, "{color.Dim("tools:")} {color.Dim("{bridgeToolCount(bridge)} available | sandbox: {sandboxLabel}")}\n")
+        cli.Error("{color.Dim("tools:")} {color.Dim("{bridgeToolCount(bridge)} available | sandbox: {sandboxLabel}")}")
 
     a := reference of Agent{Bridge: bridge, Config: cfg, MaxRounds: cfg.MaxToolRounds}
 
@@ -121,7 +121,7 @@ func cmdRun(positional list of string, flagModel string, flagChat bool, flagRaw 
             base = defaultSystemPrompt
         a.SystemPrompt = "{base}\n\n# Project Context (AGENTS.md)\n\n{agentsDoc}"
         if isTTYErr()
-            fmt.Fprint(os.Stderr, "{color.Dim("Loaded AGENTS.md from current directory")}\n")
+            cli.Error(color.Dim("Loaded AGENTS.md from current directory"))
 
     prompt := gatherPrompt(positional)
 
@@ -138,10 +138,10 @@ func cmdRun(positional list of string, flagModel string, flagChat bool, flagRaw 
 
     if isTTY
         a.OnToolCall = func(name string, toolArgs string)
-            fmt.Fprint(os.Stderr, "{color.Yellow("-> {name}")} {color.Dim(truncateFmt(toolArgs, 80))}\n")
+            cli.Error("{color.Yellow("-> {name}")} {color.Dim(truncateFmt(toolArgs, 80))}")
 
         a.OnToolResult = func(name string, result string)
-            fmt.Fprint(os.Stderr, "{color.Yellow("<- {name}")} {color.Dim(truncateFmt(result, 120))}\n")
+            cli.Error("{color.Yellow("<- {name}")} {color.Dim(truncateFmt(result, 120))}")
 
     a.OnText = func(chunk string)
         if isTTY and not flagRaw
@@ -155,7 +155,7 @@ func cmdRun(positional list of string, flagModel string, flagChat bool, flagRaw 
         fmt.Print(result.Content)
 
     if isTTY
-        fmt.Fprint(os.Stderr, "{color.Dim("({result.Rounds} tool rounds)")}\n")
+        cli.Error(color.Dim("({result.Rounds} tool rounds)"))
 
     return empty
 
@@ -293,10 +293,10 @@ func runChat(ctx context.Context, a reference Agent, initialPrompt string)
                 continue
 
         a.OnToolCall = func(name string, toolArgs string)
-            fmt.Fprint(os.Stderr, "  {color.Yellow("-> {name}")} {color.Dim(truncateFmt(toolArgs, 60))}\n")
+            cli.Error("  {color.Yellow("-> {name}")} {color.Dim(truncateFmt(toolArgs, 60))}")
 
         a.OnToolResult = func(name string, result string)
-            fmt.Fprint(os.Stderr, "  {color.Yellow("<- {name}")} {color.Dim(truncateFmt(result, 80))}\n")
+            cli.Error("  {color.Yellow("<- {name}")} {color.Dim(truncateFmt(result, 80))}")
 
         # Stream response chunks; print the model prefix lazily on the first chunk
         # so tool-call output (stderr) appears before the response line starts.

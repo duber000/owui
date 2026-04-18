@@ -82,7 +82,7 @@ func loadConfig() Config
 
 func saveConfig(cfg Config) error
     path := defaultConfigPath()
-    os.MkdirAll(filepath.Dir(path), 0700) onerr return error "{error}"
+    os.MkdirAll(filepath.Dir(path), 0700) onerr return
     files.Write(cfg, path) onerr return
     return empty
 

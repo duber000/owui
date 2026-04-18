@@ -86,7 +86,7 @@ func runAgent(ctx context.Context, a reference Agent, userPrompt string, history
                     toolResult = "ERROR: {error}"
 
                 if a.OnToolResult isnt empty
-                    a.OnToolResult(tc.Function.Name, truncateStr(toolResult, 500))
+                    a.OnToolResult(tc.Function.Name, truncateFmt(toolResult, 500))
 
                 # Add tool result as a message
                 messages = append(messages, llm.Message{Role: "tool", Content: toolResult, ToolCallID: tc.ID})
@@ -97,8 +97,3 @@ func runAgent(ctx context.Context, a reference Agent, userPrompt string, history
         return reference of RunResult{Content: content, Messages: messages, Rounds: round + 1}, empty
 
     return empty, error "agent hit max rounds ({maxRounds}) without completing"
-
-func truncateStr(s string, n int) string
-    if len(s) <= n
-        return s
-    return s[:n] + "..."
