@@ -34,15 +34,12 @@ func connectBridges(ctx context.Context, configs map of string to MCPServerConfi
     }
 
     for name, cfg in configs
-        session, err := connectOne(ctx, cfg)
-        if err isnt empty
-            continue
+        session := connectOne(ctx, cfg) onerr continue
 
         server := reference of BridgeServer{Name: name, URL: cfg.URL, Session: session}
 
         # Refresh tools for this server
-        tools, toolsErr := mcp.ListTools(ctx, session)
-        if toolsErr isnt empty
+        tools := mcp.ListTools(ctx, session) onerr
             mcp.Close(session)
             continue
 
@@ -120,9 +117,7 @@ func callBridgeTool(ctx context.Context, b reference Bridge, name string, argsJS
             if argsJSON isnt "" and argsJSON isnt "{}"
                 jsonpkg.UnmarshalString(argsJSON, reference of args) onerr return "", error "invalid tool arguments: {error}"
 
-            result, err := mcp.CallTool(ctx, s.Session, route.OriginalName, args)
-            if err isnt empty
-                return "", err
+            result := mcp.CallTool(ctx, s.Session, route.OriginalName, args) onerr return "", error "{error}"
 
             if result.IsError
                 return "ERROR: {result.Text}", empty
