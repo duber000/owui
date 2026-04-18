@@ -73,102 +73,69 @@ func registerLocalTools(b reference Bridge, cfg Config) error
         b.LocalToolNames[name] = true
     return empty
 
-# ---- JSON schema helpers ----
-
-func strProp(desc string) any
-    p := make(map of string to any)
-    p["type"] = "string"
-    p["description"] = desc
-    return p
-
-func toolSchema(props map of string to any, required list of string) any
-    s := make(map of string to any)
-    s["type"] = "object"
-    s["properties"] = props
-    s["required"] = required
-    return s
-
 # ---- Tool registry ----
 
+# toolDef wraps an llm.Tool literal so each registration reads as one line.
+func toolDef(name string, description string, schema map of string to any) llm.Tool
+    return llm.Tool{
+        Type: "function",
+        Function: llm.ToolFunction{
+            Name: name,
+            Description: description,
+            Parameters: schema,
+        },
+    }
+
 func localToolDefs() list of llm.Tool
-    tools := make(list of llm.Tool, 0, 6)
+    readSchema := llm.Schema(list of llm.SchemaProperty{
+        llm.Prop("path", "string", "File path relative to sandbox root"),
+    }) |> llm.Required(list of string{"path"})
 
-    readProps := make(map of string to any)
-    readProps["path"] = strProp("File path relative to sandbox root")
-    tools = append(tools, llm.Tool{
-        Type: "function",
-        Function: llm.ToolFunction{
-        Name: "read_file",
-        Description: "Read the contents of a file within the sandbox",
-        Parameters: toolSchema(readProps, list of string{"path"}),
-    },
+    writeSchema := llm.Schema(list of llm.SchemaProperty{
+        llm.Prop("path", "string", "File path relative to sandbox root"),
+        llm.Prop("content", "string", "Content to write"),
+    }) |> llm.Required(list of string{"path", "content"})
+
+    listSchema := llm.Schema(list of llm.SchemaProperty{
+        llm.Prop("path", "string", "Directory path relative to sandbox root (default: .)"),
     })
 
-    writeProps := make(map of string to any)
-    writeProps["path"] = strProp("File path relative to sandbox root")
-    writeProps["content"] = strProp("Content to write")
-    tools = append(tools, llm.Tool{
-        Type: "function",
-        Function: llm.ToolFunction{
-        Name: "write_file",
-        Description: "Write or overwrite a file within the sandbox",
-        Parameters: toolSchema(writeProps, list of string{"path", "content"}),
-    },
-    })
+    searchSchema := llm.Schema(list of llm.SchemaProperty{
+        llm.Prop("pattern", "string", "File name glob pattern (e.g. *.go, main.*)"),
+    }) |> llm.Required(list of string{"pattern"})
 
-    listProps := make(map of string to any)
-    listProps["path"] = strProp("Directory path relative to sandbox root (default: .)")
-    tools = append(tools, llm.Tool{
-        Type: "function",
-        Function: llm.ToolFunction{
-        Name: "list_dir",
-        Description: "List files and directories within a sandbox directory",
-        Parameters: toolSchema(listProps, make(list of string, 0)),
-    },
-    })
+    grepSchema := llm.Schema(list of llm.SchemaProperty{
+        llm.Prop("pattern", "string", "Regex or literal text to search for"),
+        llm.Prop("path", "string", "Path within sandbox to search (default: .)"),
+    }) |> llm.Required(list of string{"pattern"})
 
-    searchProps := make(map of string to any)
-    searchProps["pattern"] = strProp("File name glob pattern (e.g. *.go, main.*)")
-    tools = append(tools, llm.Tool{
-        Type: "function",
-        Function: llm.ToolFunction{
-        Name: "search_files",
-        Description: "Search for files matching a name pattern within the sandbox",
-        Parameters: toolSchema(searchProps, list of string{"pattern"}),
-    },
-    })
+    # run_command has an array-typed `args` property — llm.Schema only
+    # expresses scalar types today, so build this one by hand.
+    runProps := map of string to any{
+        "cmd": map of string to any{
+            "type": "string",
+            "description": "Command name — allowed: bd cat cp date diff echo find git grep head ls mkdir mv pwd rm sort tail touch uniq wc which",
+        },
+        "args": map of string to any{
+            "type": "array",
+            "items": map of string to any{"type": "string"},
+            "description": "Command arguments",
+        },
+    }
+    runSchema := map of string to any{
+        "type": "object",
+        "properties": runProps,
+        "required": list of string{"cmd"},
+    }
 
-    grepProps := make(map of string to any)
-    grepProps["pattern"] = strProp("Regex or literal text to search for")
-    grepProps["path"] = strProp("Path within sandbox to search (default: .)")
-    tools = append(tools, llm.Tool{
-        Type: "function",
-        Function: llm.ToolFunction{
-        Name: "grep_files",
-        Description: "Search file contents for a pattern within the sandbox",
-        Parameters: toolSchema(grepProps, list of string{"pattern"}),
-    },
-    })
-
-    argsItem := make(map of string to any)
-    argsItem["type"] = "string"
-    argsArr := make(map of string to any)
-    argsArr["type"] = "array"
-    argsArr["items"] = argsItem
-    argsArr["description"] = "Command arguments"
-    runProps := make(map of string to any)
-    runProps["cmd"] = strProp("Command name — allowed: bd cat cp date diff echo find git grep head ls mkdir mv pwd rm sort tail touch uniq wc which")
-    runProps["args"] = argsArr
-    tools = append(tools, llm.Tool{
-        Type: "function",
-        Function: llm.ToolFunction{
-        Name: "run_command",
-        Description: "Run an allowlisted shell command in the sandbox directory",
-        Parameters: toolSchema(runProps, list of string{"cmd"}),
-    },
-    })
-
-    return tools
+    return list of llm.Tool{
+        toolDef("read_file", "Read the contents of a file within the sandbox", readSchema),
+        toolDef("write_file", "Write or overwrite a file within the sandbox", writeSchema),
+        toolDef("list_dir", "List files and directories within a sandbox directory", listSchema),
+        toolDef("search_files", "Search for files matching a name pattern within the sandbox", searchSchema),
+        toolDef("grep_files", "Search file contents for a pattern within the sandbox", grepSchema),
+        toolDef("run_command", "Run an allowlisted shell command in the sandbox directory", runSchema),
+    }
 
 # ---- Tool dispatch ----
 
