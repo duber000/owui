@@ -16,6 +16,7 @@ import "stdlib/llm"
 import "stdlib/netguard"
 import "stdlib/sandbox"
 import "stdlib/shell"
+import "stdlib/slice"
 import "stdlib/string" as strpkg
 
 func defaultCmdAllowList() list of string
@@ -221,10 +222,9 @@ func localSearchFiles(lt LocalTools, argsJSON string) (string, error)
         return "(no matches)", empty
     prefix := sandboxPath + "/"
     lines := strpkg.Split(raw, "\n")
-    results := make(list of string, 0, len(lines))
-    for line in lines
-        if line isnt ""
-            results = append(results, strpkg.TrimPrefix(line, prefix))
+    results := lines
+        |> slice.Filter(l => l isnt "")
+        |> slice.Map((l string) => strpkg.TrimPrefix(l, prefix))
     return strpkg.Join(results, "\n"), empty
 
 func localGrepFiles(lt LocalTools, argsJSON string) (string, error)
@@ -246,10 +246,9 @@ func localGrepFiles(lt LocalTools, argsJSON string) (string, error)
         return "(no matches)", empty
     prefix := sandboxPath + "/"
     lines := strpkg.Split(raw, "\n")
-    results := make(list of string, 0, len(lines))
-    for line in lines
-        if line isnt ""
-            results = append(results, strpkg.TrimPrefix(line, prefix))
+    results := lines
+        |> slice.Filter(l => l isnt "")
+        |> slice.Map((l string) => strpkg.TrimPrefix(l, prefix))
     return strpkg.Join(results, "\n"), empty
 
 func localRunCommand(lt LocalTools, argsJSON string) (string, error)
