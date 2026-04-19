@@ -215,9 +215,9 @@ func localSearchFiles(lt LocalTools, argsJSON string) (string, error)
     jsonpkg.UnmarshalString(argsJSON, reference of a) onerr return "", error "search_files: bad args: {error}"
     if a.Pattern equals ""
         return "", error "search_files: missing pattern"
-    sandboxPath := sandbox.Path(lt.Box)
+    sandboxPath := lt.Box.Path
     out := shell.New("find", sandboxPath, "-name", a.Pattern) |> shell.Execute()
-    raw := strpkg.TrimSpace(shell.GetOutput(out) as string)
+    raw := strpkg.TrimSpace(out.Stdout as string)
     if raw equals ""
         return "(no matches)", empty
     prefix := sandboxPath + "/"
@@ -232,7 +232,7 @@ func localGrepFiles(lt LocalTools, argsJSON string) (string, error)
     jsonpkg.UnmarshalString(argsJSON, reference of a) onerr return "", error "grep_files: bad args: {error}"
     if a.Pattern equals ""
         return "", error "grep_files: missing pattern"
-    sandboxPath := sandbox.Path(lt.Box)
+    sandboxPath := lt.Box.Path
     searchPath := a.Path
     if searchPath equals ""
         searchPath = "."
@@ -241,7 +241,7 @@ func localGrepFiles(lt LocalTools, argsJSON string) (string, error)
     if strpkg.HasPrefix(rel, "..")
         return "", error "grep_files: path escapes sandbox"
     out := shell.New("grep", "-r", "-n", a.Pattern, fullPath) |> shell.Execute()
-    raw := strpkg.TrimSpace(shell.GetOutput(out) as string)
+    raw := strpkg.TrimSpace(out.Stdout as string)
     if raw equals ""
         return "(no matches)", empty
     prefix := sandboxPath + "/"
@@ -259,10 +259,10 @@ func localRunCommand(lt LocalTools, argsJSON string) (string, error)
     _, ok := lt.AllowedCmds[a.Cmd]
     if not ok
         return "", error "run_command: '{a.Cmd}' is not in the allowed command list"
-    sandboxPath := sandbox.Path(lt.Box)
+    sandboxPath := lt.Box.Path
     out := shell.New(a.Cmd, many a.Args) |> shell.Dir(sandboxPath) |> shell.Execute()
-    stdout := strpkg.TrimSpace(shell.GetOutput(out) as string)
-    stderr := strpkg.TrimSpace(shell.GetError(out) as string)
+    stdout := strpkg.TrimSpace(out.Stdout as string)
+    stderr := strpkg.TrimSpace(out.Stderr as string)
     combined := stdout
     if stderr isnt ""
         if combined isnt ""
@@ -272,5 +272,5 @@ func localRunCommand(lt LocalTools, argsJSON string) (string, error)
     if combined equals ""
         combined = "(no output)"
     if not shell.Success(out)
-        return combined, error "exited {shell.ExitCode(out)}"
+        return combined, error "exited {out.ExitCode}"
     return combined, empty
