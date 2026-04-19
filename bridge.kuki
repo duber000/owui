@@ -8,7 +8,7 @@ import "context"
 import "stdlib/json" as jsonpkg
 import "stdlib/llm"
 import "stdlib/mcp"
-import "stdlib/string" as strpkg
+import "stdlib/regex"
 
 type ToolRoute
     ServerName string
@@ -127,7 +127,4 @@ func callBridgeTool(ctx context.Context, b reference Bridge, name string, argsJS
     return "", error "server {route.ServerName} not connected"
 
 func sanitizeName(name string) string
-    result := strpkg.ReplaceAll(name, "/", "_")
-    result = strpkg.ReplaceAll(result, " ", "_")
-    result = strpkg.ReplaceAll(result, "-", "_")
-    return result
+    return regex.Replace(name, `[-/ ]`, "_")

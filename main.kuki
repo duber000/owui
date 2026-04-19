@@ -365,7 +365,7 @@ func truncateFmt(s string, n int) string
     s = strpkg.ReplaceAll(s, "\n", " ")
     if len(s) <= n
         return s
-    return "{s[:n]}..."
+    return s[:n - 3] + "..."
 
 func printUsage()
     print("owui — CLI agent: Open WebUI models + Open Terminal via MCP")
