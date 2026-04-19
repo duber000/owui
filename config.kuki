@@ -4,7 +4,6 @@
 petiole main
 
 import "os"
-import "path/filepath"
 import "stdlib/env"
 import "stdlib/files"
 import "stdlib/json" as jsonpkg
@@ -28,7 +27,7 @@ type Config
 
 func defaultConfigPath() string
     home, _ := os.UserHomeDir()
-    return filepath.Join(home, ".config", "owui", "config.json")
+    return files.Join(home, ".config", "owui", "config.json")
 
 func loadConfig() Config
     cfg := Config{
@@ -82,7 +81,7 @@ func loadConfig() Config
 
 func saveConfig(cfg Config) error
     path := defaultConfigPath()
-    os.MkdirAll(filepath.Dir(path), 0700) onerr return
+    files.MkDirAll(files.Dirname(path)) onerr return
     files.Write(cfg, path) onerr return
     return empty
 
