@@ -7,6 +7,7 @@ petiole main
 import "context"
 import "stdlib/json" as jsonpkg
 import "stdlib/llm"
+import "stdlib/maps"
 import "stdlib/mcp"
 import "stdlib/regex"
 
@@ -94,11 +95,8 @@ func bridgeToolCount(b reference Bridge) int
     return count
 
 func bridgeToolNames(b reference Bridge) list of string
-    names := make(list of string, 0, len(b.ToolMap) + len(b.LocalToolNames))
-    for name, _ in b.LocalToolNames
-        names = append(names, name)
-    for prefixed, _ in b.ToolMap
-        names = append(names, prefixed)
+    names := maps.Keys(b.LocalToolNames)
+    names = append(names, many maps.Keys(b.ToolMap))
     return names
 
 # callBridgeTool dispatches a tool call — built-in tools first, then MCP servers.
