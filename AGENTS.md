@@ -599,10 +599,18 @@ defer db.Close(pool)
 
 #### AI & Agents
 
-**llm** — LLM calls: `New`/`Ask`/`Send` (OpenAI), `NewResponse`/`RAsk` (OpenResponses), `NewMessages`/`MAsk` (Anthropic); all support `Retry` and `Stream` variants
+**llm** — Shared schema utilities: `Prop`, `Schema`, `Required` (for building tool parameter schemas)
+
+**llm/chat** — Chat Completions API (OpenAI-compatible): `New`/`Ask`/`Send`/`SendRaw`/`Complete`; `System`/`User`/`Assistant`; `Temperature`/`MaxTokens`/`Stream`/`Retry`/`WithContext`; `GetText`/`GetToolCalls`
+
+**llm/responses** — OpenResponses API: `New`/`Ask`/`Send`/`AskRaw`/`SendRaw`/`Respond`; `Instructions`/`User`/`System`/`PreviousResponse`; `Temperature`/`MaxOutputTokens`/`Stream`/`StreamEvents`/`Retry`; `GetText`/`GetFunctionCalls`
+
+**llm/anthropic** — Anthropic Messages API: `New`/`Ask`/`Send`/`AskRaw`/`SendRaw`/`Complete`; `System`/`User`/`Assistant`/`ToolResult`; `Temperature`/`MaxTokens`/`AdaptiveThinking`/`Effort`/`Stream`/`StreamEvents`/`Retry`; `GetText`/`GetThinking`/`GetToolUses`
 
 ```kukicha
-reply := llm.New("openai:gpt-4o-mini") |> llm.Retry(3, 2000) |> llm.Ask("Hello!") onerr panic "{error}"
+import "stdlib/llm/chat"
+
+reply := chat.New("openai:gpt-4o-mini") |> chat.Retry(3, 2000) |> chat.Ask("Hello!") onerr panic "{error}"
 ```
 
 **mcp** — MCP server + client: `New`, `Tool`, `Serve`, `Connect`, `BearerConnect`, `ListTools`, `CallTool`

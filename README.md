@@ -20,7 +20,7 @@ A terminal-native agent that uses [Open WebUI](https://github.com/open-webui/ope
 
 **Built-in tools run without any MCP server.** Even with no MCP configured, owui exposes a sandboxed set of file and shell tools using kernel-level path confinement (`os.Root`) and an explicit command allowlist.
 
-Built with [Kukicha](https://kukicha.org) and its stdlib (`stdlib/llm`, `stdlib/mcp`, `stdlib/sandbox`, `stdlib/netguard`, `stdlib/shell`).
+Built with [Kukicha](https://kukicha.org) and its stdlib (`stdlib/llm/chat`, `stdlib/mcp`, `stdlib/sandbox`, `stdlib/netguard`, `stdlib/shell`).
 
 ## Install
 
@@ -125,7 +125,7 @@ main.kuki          CLI entrypoint — flag parsing, subcommand dispatch,
 agent.kuki         Agent loop: LLM → tool calls → bridge dispatch → repeat
                    (streaming and tool calls work in the same round)
 bridge.kuki        Multi-server MCP client — discovers tools at connect time,
-                   converts MCP schemas to stdlib/llm tool format,
+                   converts MCP schemas to stdlib/llm/chat tool format,
                    dispatches CallTool; prefixes tool names with server name
 config.kuki        Config loading (env > ~/.config/owui/config.json > defaults)
                    Supports multiple named MCP servers, IP allow/block lists,

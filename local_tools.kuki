@@ -13,6 +13,7 @@ import "os"
 import "path/filepath"
 import "stdlib/json" as jsonpkg
 import "stdlib/llm"
+import "stdlib/llm/chat"
 import "stdlib/netguard"
 import "stdlib/sandbox"
 import "stdlib/shell"
@@ -76,18 +77,18 @@ func registerLocalTools(b reference Bridge, cfg Config) error
 
 # ---- Tool registry ----
 
-# toolDef wraps an llm.Tool literal so each registration reads as one line.
-func toolDef(name string, description string, schema map of string to any) llm.Tool
-    return llm.Tool{
+# toolDef wraps an chat.Tool literal so each registration reads as one line.
+func toolDef(name string, description string, schema map of string to any) chat.Tool
+    return chat.Tool{
         Type: "function",
-        Function: llm.ToolFunction{
+        Function: chat.ToolFunction{
             Name: name,
             Description: description,
             Parameters: schema,
         },
     }
 
-func localToolDefs() list of llm.Tool
+func localToolDefs() list of chat.Tool
     readSchema := llm.Schema(list of llm.SchemaProperty{
         llm.Prop("path", "string", "File path relative to sandbox root"),
     }) |> llm.Required(list of string{"path"})
@@ -129,7 +130,7 @@ func localToolDefs() list of llm.Tool
         "required": list of string{"cmd"},
     }
 
-    return list of llm.Tool{
+    return list of chat.Tool{
         toolDef("read_file", "Read the contents of a file within the sandbox", readSchema),
         toolDef("write_file", "Write or overwrite a file within the sandbox", writeSchema),
         toolDef("list_dir", "List files and directories within a sandbox directory", listSchema),

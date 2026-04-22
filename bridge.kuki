@@ -1,12 +1,12 @@
 # Bridge — MCP client that discovers tools and dispatches tool calls
 # Connects to multiple MCP servers via streamable HTTP transport
-# Converts between MCP tool format and stdlib/llm tool format
+# Converts between MCP tool format and stdlib/llm/chat tool format
 
 petiole main
 
 import "context"
 import "stdlib/json" as jsonpkg
-import "stdlib/llm"
+import "stdlib/llm/chat"
 import "stdlib/maps"
 import "stdlib/mcp"
 import "stdlib/regex"
@@ -68,8 +68,8 @@ func closeBridges(b reference Bridge) error
     return empty
 
 # bridgeTools returns all tools — built-in local tools first, then MCP-discovered.
-func bridgeTools(b reference Bridge) list of llm.Tool
-    tools := make(list of llm.Tool, 0, len(b.ToolMap) + len(b.LocalToolNames))
+func bridgeTools(b reference Bridge) list of chat.Tool
+    tools := make(list of chat.Tool, 0, len(b.ToolMap) + len(b.LocalToolNames))
 
     if len(b.LocalToolNames) > 0
         tools = append(tools, many localToolDefs())
@@ -77,9 +77,9 @@ func bridgeTools(b reference Bridge) list of llm.Tool
     for _, s in b.Servers
         for _, t in s.Tools
             prefixed := "{s.Name}_{sanitizeName(t.Name)}"
-            tools = append(tools, llm.Tool{
+            tools = append(tools, chat.Tool{
                 Type: "function",
-                Function: llm.ToolFunction{
+                Function: chat.ToolFunction{
                 Name: prefixed,
                 Description: "({s.Name}) {t.Description}",
                 Parameters: t.InputSchema,
