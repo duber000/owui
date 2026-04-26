@@ -217,15 +217,17 @@ func localSearchFiles(lt LocalTools, argsJSON string) (string, error)
     if a.Pattern equals ""
         return "", error "search_files: missing pattern"
     sandboxPath := lt.Box.Path
-    out := shell.New("find", sandboxPath, "-name", a.Pattern) |> shell.Execute()
+    out := shell.New("find", sandboxPath)
+        |> .Flag("-name", a.Pattern)
+        |> .Execute()
     raw := strpkg.TrimSpace(out.Stdout as string)
     if raw equals ""
         return "(no matches)", empty
     prefix := sandboxPath + "/"
     lines := strpkg.Split(raw, "\n")
     results := lines
-        |> slice.Filter(l => l isnt "")
-        |> slice.Map((l string) => strpkg.TrimPrefix(l, prefix))
+        |> slice.Filter((l string) bool => l isnt "")
+        |> slice.Map((l string) string => strpkg.TrimPrefix(l, prefix))
     return strpkg.Join(results, "\n"), empty
 
 func localGrepFiles(lt LocalTools, argsJSON string) (string, error)
@@ -241,15 +243,15 @@ func localGrepFiles(lt LocalTools, argsJSON string) (string, error)
     rel := filepath.Rel(sandboxPath, fullPath) onerr return "", error "grep_files: invalid path"
     if strpkg.HasPrefix(rel, "..")
         return "", error "grep_files: path escapes sandbox"
-    out := shell.New("grep", "-r", "-n", a.Pattern, fullPath) |> shell.Execute()
+    out := shell.New("grep", "-r", "-n", a.Pattern, fullPath) |> .Execute()
     raw := strpkg.TrimSpace(out.Stdout as string)
     if raw equals ""
         return "(no matches)", empty
     prefix := sandboxPath + "/"
     lines := strpkg.Split(raw, "\n")
     results := lines
-        |> slice.Filter(l => l isnt "")
-        |> slice.Map((l string) => strpkg.TrimPrefix(l, prefix))
+        |> slice.Filter((l string) bool => l isnt "")
+        |> slice.Map((l string) string => strpkg.TrimPrefix(l, prefix))
     return strpkg.Join(results, "\n"), empty
 
 func localRunCommand(lt LocalTools, argsJSON string) (string, error)
@@ -261,7 +263,7 @@ func localRunCommand(lt LocalTools, argsJSON string) (string, error)
     if not ok
         return "", error "run_command: '{a.Cmd}' is not in the allowed command list"
     sandboxPath := lt.Box.Path
-    out := shell.New(a.Cmd, many a.Args) |> shell.Dir(sandboxPath) |> shell.Execute()
+    out := shell.New(a.Cmd, many a.Args) |> .Dir(sandboxPath) |> .Execute()
     stdout := strpkg.TrimSpace(out.Stdout as string)
     stderr := strpkg.TrimSpace(out.Stderr as string)
     combined := stdout
@@ -272,6 +274,6 @@ func localRunCommand(lt LocalTools, argsJSON string) (string, error)
             combined = "[stderr]\n{stderr}"
     if combined equals ""
         combined = "(no output)"
-    if not shell.Success(out)
+    if not out.Success()
         return combined, error "exited {out.ExitCode}"
     return combined, empty

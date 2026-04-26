@@ -15,6 +15,7 @@ import "stdlib/fetch"
 import "stdlib/files"
 import "stdlib/input"
 import "stdlib/json" as jsonpkg
+import "stdlib/llm/chat"
 import "stdlib/string" as strpkg
 
 var version string = "dev"
@@ -147,7 +148,7 @@ func cmdRun(positional list of string, flagModel string, flagChat bool, flagRaw 
         if isTTY and not flagRaw
             fmt.Print(chunk)
 
-    result := runAgent(ctx, a, prompt, empty list of llm.Message) onerr return
+    result := runAgent(ctx, a, prompt, empty list of chat.Message) onerr return
 
     if isTTY and not flagRaw
         print("")
@@ -278,7 +279,7 @@ func cmdConfigure() error
 # ---- Interactive chat (simple readline loop) ----
 
 func runChat(ctx context.Context, a reference Agent, initialPrompt string)
-    history := empty list of llm.Message
+    history := empty list of chat.Message
     prompt := initialPrompt
 
     print(color.Dim("owui chat — model: {a.Config.Model} — type 'exit' to quit"))

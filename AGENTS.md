@@ -48,6 +48,28 @@ Run: `kukicha run hello.kuki` · Build: `kukicha build hello.kuki`
 
 `func`/`var`/`const` have aliases `function`/`variable`/`constant` — use the short forms in production code; reserve the long forms for beginner tutorials only.
 
+### Constants and `iota`
+
+Constants are fixed values determined at compile time. They can be declared singly or in groups. In a group, if the value is omitted, it repeats the expression from the previous line.
+
+```kukicha
+const PI = 3.14159
+const (
+    StatusActive = iota  # 0
+    StatusInactive       # 1
+    StatusArchived       # 2
+)
+
+const (
+    FormatJSON string = "json"
+    FormatXML          # also string = "json" (repetitions inherit both type and value)
+)
+```
+
+- `iota` is a special constant that resets to 0 at the start of every `const` block and increments by 1 for every `ConstSpec`.
+- Explicit types are optional but can be provided: `const Name Type = Value`.
+
+
 ### Variables and Functions
 
 ```kukicha
@@ -277,6 +299,30 @@ repos |> slice.Filter(r =>
     name := r.name |> strpkg.ToLower()
     return name |> strpkg.Contains("go")
 )
+
+# Explicit return types (optional)
+# Single return:
+summarizer := (name string, age int) list of string =>
+    return list of string{"Name: {name}", "Age: {age}"}
+
+# Multi-return:
+divider := (a, b float64) (float64, error) =>
+    if b equals 0 then return 0, error "div zero"
+    return a/b, empty
+
+
+# Block lambdas may contain pipe chains and onerr:
+db.Transaction(pool, (tx) =>
+    db.TxExec(tx, "UPDATE accounts SET balance = balance - $1 WHERE id = $2", amt, from) onerr return
+    db.TxExec(tx, "UPDATE accounts SET balance = balance + $1 WHERE id = $2", amt, to)   onerr return
+    return empty
+) onerr panic "transfer failed: {error}"
+
+# Cross-package named types infer from the callback signature — no helper func needed:
+retry.DoCtx(ctx, cfg, (h) =>            # h is ctxpkg.Handle, inferred
+    _, err := fetch.GetCtx(h, url)
+    return err
+)
 ```
 
 ### Collections and Literals
@@ -364,7 +410,6 @@ import "stdlib/json"      as jsonpkg    # clashes with 'encoding/json'
 import "stdlib/string"    as strpkg     # clashes with 'string' type
 import "stdlib/container" as docker     # clashes with 'container' vars
 import "stdlib/http"      as httphelper # clashes with 'net/http'
-import "stdlib/net"       as netutil    # clashes with 'net' package
 
 import "github.com/jackc/pgx/v5" as pgx  # external package
 ```
@@ -378,17 +423,40 @@ kukicha init [module]          # init project (go mod init + extract stdlib)
 kukicha check file.kuki        # validate syntax
 kukicha check --json file.kuki # JSON diagnostics
 kukicha run file.kuki          # transpile + compile + run
+kukicha run --json file.kuki   # JSON compile errors (program output unchanged on success)
 kukicha build file.kuki        # compile to binary
 kukicha build myapp/           # build directory
 kukicha build --wasm file.kuki # WebAssembly output
+kukicha build --json file.kuki # JSON build result
 kukicha fmt -w file.kuki       # format in place
 kukicha fmt --check dir/       # check formatting (CI / pre-commit gate)
+kukicha fmt --check --json dir/ # JSON array of unformatted file paths
 kukicha brew file.kuki         # convert .kuki to standalone Go
 kukicha pack skill.kuki        # package skill with SKILL.md + binary
+kukicha context myapp/         # project metadata as JSON (agents, IDEs, CI)
 kukicha audit                  # vulnerability check
 ```
 
 Run `kukicha fmt -w` before committing; CI should run `kukicha fmt --check`.
+
+`kukicha context <file|dir>` emits a JSON snapshot for agents and CI — top-level decls only (methods, fields, enum cases, interface methods are excluded to keep the shape flat):
+
+```json
+{
+  "kukicha_version": "0.6.4",
+  "petiole": "myapp",
+  "is_directory": true,
+  "files": ["main.kuki", "lib.kuki"],
+  "entry_point": "main.kuki",
+  "imports": [{"path": "stdlib/slice", "alias": ""}],
+  "functions": ["Hello", "main"],
+  "types": ["User"],
+  "enums": ["Status"],
+  "commands": {"check": "...", "build": "...", "run": "..."}
+}
+```
+
+`entry_point` is omitted for library projects or when multiple `func main()` declarations are found across files. Names are deduplicated across files and sorted.
 
 ---
 
@@ -398,10 +466,11 @@ Browse `.kukicha/stdlib/` for full API details. Key functions listed below.
 
 #### Collections & Strings
 
-**slice** — `Filter`, `Map`, `GroupBy`, `Sort`, `SortBy`, `First`, `Last`, `Contains`, `Unique`, `Chunk`, `Find`, `FindOr`, `Get`, `GetOr`, `FirstOr`, `LastOr`, `Pop`, `Shift`, `Reverse`, `Concat`, `IndexOf`, `IsEmpty`
+**slice** — `Filter`, `Partition`, `Map`, `GroupBy`, `Sort`, `SortBy`, `First`, `Last`, `Contains`, `Unique`, `Chunk`, `Find`, `FindOr`, `Get`, `GetOr`, `FirstOr`, `LastOr`, `Pop`, `Shift`, `Reverse`, `Concat`, `IndexOf`, `IsEmpty`
 
 ```kukicha
 active := slice.Filter(items, x => x.active)
+healthy, unhealthy := slice.Partition(items, x => x.ok)  # single pass, both halves
 names  := slice.Map(items, x => x.name)
 first  := slice.FirstOr(items, defaultVal)
 ```
@@ -435,7 +504,7 @@ names := repos
 
 #### Data & Encoding
 
-**json** (as `jsonpkg`) — `Marshal`, `MarshalPretty`, `Unmarshal`, `MarshalWrite`, `UnmarshalRead`
+**json** (as `jsonpkg`) — `Marshal`, `MarshalPretty`, `Unmarshal`, `MarshalWrite`, `UnmarshalRead`, `PrettyString`
 
 **parse** — `Json`, `JsonLines`, `Csv`, `CsvWithHeader`, `Yaml`, `YamlPretty`
 
@@ -459,11 +528,13 @@ box := sandbox.New("/var/data") onerr return
 content := sandbox.Read(box, userPath) onerr return   # can't escape root
 ```
 
-**shell** — `Run` (fixed literals only), `Output` (variable args), `New`/`Dir`/`Env`/`Execute` (builder)
+**shell** — `Run` (fixed literals only), `Output` (variable args), `Lines` (stdout split into lines, trailing empty stripped), `New`/`Dir`/`Env`/`Execute` (builder), `Require` (stdout or err-wrapping-stderr; pairs with `Execute` in pipes)
 
 ```kukicha
-diff := shell.Run("git diff --staged") onerr panic "{error}"
-out  := shell.Output("git", "log", "--oneline", branch) onerr panic "{error}"
+diff  := shell.Run("git diff --staged") onerr panic "{error}"
+out   := shell.Output("git", "log", "--oneline", branch) onerr panic "{error}"
+files := shell.Lines("git", "ls-files") onerr return
+tests := shell.New("go", "test", "./...") |> shell.Execute() |> shell.Require() onerr return
 ```
 
 #### HTTP & Networking
@@ -485,7 +556,7 @@ resp := fetch.New(url)
     |> fetch.Do() onerr panic "{error}"
 ```
 
-Key: `Get`, `SafeGet` (SSRF-safe), `Post`, `Json`, `Text`, `Bytes`, `CheckStatus`, `URLTemplate`, `URLWithQuery`, `New`/`BearerAuth`/`Timeout`/`Retry`/`MaxBodySize`/`Do`, `DownloadTo`
+Key: `Get`, `SafeGet` (SSRF-safe), `Post`, `Json`, `Text`, `Bytes`, `CheckStatus`, `URLTemplate`, `URLWithQuery`, `New`/`NewExternal` (SSRF-safe builder)/`BearerAuth`/`Timeout`/`Retry`/`MaxBodySize`/`Do`, `DownloadTo`
 
 **http** (as `httphelper`) — Response helpers + security
 
@@ -506,30 +577,37 @@ page := html.Render("<h1>{html.Escape(title)}</h1>")
 html.WriteTo(w, page) onerr discard
 ```
 
-**net** (as `netutil`) — `ParseIP`, `ParseCIDR`, `Contains`, `IsPrivate`, `IsLoopback`
-
-**netguard** — SSRF protection: `NewSSRFGuard`, `NewAllow`, `NewBlock`, `Check`, `HTTPClient`, `HTTPTransport`
+**netguard** — SSRF protection: `NewSSRFGuard`, `NewAllow`, `NewBlock`, `Check`, `HTTPClient`, `HTTPTransport`. For IP/CIDR parsing, use Go's `net` package directly.
 
 #### CLI & System
 
-**cli** — Argument parsing: `New`, `AddFlag`, `Action`, `RunApp`, `Command`, `GetString`, `GetInt`, `Fatal`, `Error`, `Warn`
+**cli** — Argument parsing: `New`, `AddFlag`, `Action`, `Run`, `NewCommand`, `WithCommands`, `GlobalFlag`, `GetString`, `GetInt`, `Fatal`, `Error`. Build each subcommand with `cli.NewCommand(name, desc) |> .Flag(...) |> .Action(...)`, then attach via `cli.WithCommands(cmd1, cmd2, ...)`.
 
 ```kukicha
+# Flat app (no subcommands)
 app := cli.New("myapp") |> cli.AddFlag("port", "Port", "8080") |> cli.Action(run)
-cli.RunApp(app) onerr panic "{error}"
-data := loadConfig() onerr cli.Fatal("config error: {error}")
+cli.Run(app) onerr panic "{error}"
+
+# Subcommands — build each command, then attach with WithCommands
+listCmd := cli.NewCommand("list", "List items")
+    |> .Flag("csv", "CSV output", "false")
+    |> .Action(doList)
+
+cli.New("myapp")
+    |> cli.WithCommands(listCmd)
+    |> cli.Run() onerr cli.Fatal("{error}")
 ```
 
 **input** — `ReadLine`, `Prompt`, `Confirm`, `Choose`
 
 **table** — Terminal tables: `New`, `AddRow`, `Print`, `PrintWithStyle` (`"plain"`, `"box"`, `"markdown"`)
 
-**color** — ANSI terminal colors: `Bold`, `Dim`, `Red`, `Green`, `Yellow`, `Blue`, `Cyan`, `Gray`, `BrightRed`, `Error`, `Warn`, `Success`, `Info`, `Muted`, `Enabled`, `SetEnabled`
+**color** — ANSI terminal colors: `Bold`, `Dim`, `Italic`, `Underline`, `Red`, `Green`, `Yellow`, `Blue`, `Magenta`, `Cyan`, `Gray`, `BrightRed`, `Error` (bold bright red), `Enabled`, `SetEnabled`
 
 ```kukicha
 print(color.Bold("Title"))
-print(color.Red("error: something went wrong"))
-print(color.Success("All tests passed"))
+print(color.Error("fatal: disk full"))
+print(color.Green("All tests passed"))
 color.SetEnabled(false)  # disable in tests
 ```
 
@@ -589,7 +667,7 @@ defer db.Close(pool)
 
 #### DevOps & Infrastructure
 
-**container** (as `docker`) — Docker/Podman: `Connect`, `ListContainers`, `ListImages`, `Pull`, `Run`, `Stop`, `Remove`, `Build`, `Logs`, `Wait`, `Exec`
+**container** (as `docker`) — Docker/Podman: `Connect`/`ConnectRemote`, `Run`, `Exec`, `Logs`, `Build`, `Pull`/`PullAuth`, `LoginFromConfig`, `Wait`/`WaitCtx`, `Events`/`EventsCtx`, `CopyTo`/`CopyFrom`. For anything not wrapped here, use `engine.Cli` directly.
 
 **git** — Git/GitHub via `gh`: `ListTags`, `TagExists`, `DefaultBranch`, `CreateRelease`, `PreviewRelease`
 
@@ -651,7 +729,7 @@ The compiler **rejects** these patterns in HTTP handlers (functions with `http.R
 | Pattern | Fix |
 |---------|-----|
 | `httphelper.HTML(w, nonLiteral)` | `httphelper.SafeHTML(w, content)` |
-| `fetch.Get(url)` in handler | `fetch.SafeGet(url)` |
+| `fetch.Get(url)` in handler | `fetch.SafeGet(url)` (or `fetch.NewExternal(url) \|> ... \|> Do()` for builder) |
 | `files.Read(path)` in handler | `sandbox.New(root)` + `sandbox.Read(box, path)` |
 | `shell.Run("cmd {var}")` | `shell.Output("cmd", arg)` |
 | `httphelper.Redirect(w, r, nonLiteral)` | `httphelper.SafeRedirect(w, r, url, "host")` |
@@ -738,14 +816,14 @@ Assertions: `AssertEqual`, `AssertNotEqual`, `AssertTrue`, `AssertFalse`, `Asser
 # WRONG — cancel fires when buildCmd returns, context is dead before use
 func buildCmd() reference exec.Cmd
     h := ctxpkg.WithTimeout(ctxpkg.Background(), 30)
-    defer ctxpkg.Cancel(h)
-    return exec.CommandContext(ctxpkg.Value(h), name, many args)
+    defer h.Cancel()
+    return exec.CommandContext(h.Ctx, name, many args)
 
 # CORRECT — defer in Execute, which owns the resource's lifetime
 func Execute() Result
     h := ctxpkg.WithTimeout(ctxpkg.Background(), 30)
-    defer ctxpkg.Cancel(h)     # fires after Run()
-    execCmd := exec.CommandContext(ctxpkg.Value(h), name, many args)
+    defer h.Cancel()     # fires after Run()
+    execCmd := exec.CommandContext(h.Ctx, name, many args)
     ...
 ```
 
