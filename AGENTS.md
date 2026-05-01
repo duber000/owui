@@ -207,7 +207,22 @@ users := parse() onerr
 users := parse() onerr as e
     print("failed: {e}")    # {e} and {error} both work
     return
+
+# Block form with `fallback` — run side effects AND supply a default
+setting := loadConfig(path) onerr as e
+    print("loadConfig failed: {e} — using default")
+    fallback "default-config"
+
+# Multi-value fallback: one expression per LHS slot
+x, y := loadCoords() onerr
+    print("coords lookup failed; using origin")
+    fallback 0, 0
 ```
+
+`fallback EXPR[, EXPR...]` is a terminator for the `onerr` block (like
+`return`/`panic`/`continue`/`break`). It must be the last statement in the
+handler, and the expression count must match the LHS slot count. Use it when
+you need both side effects (logging, metrics) AND a default value.
 
 ### Pipes
 
@@ -216,6 +231,9 @@ result := data |> parse() |> transform()
 
 # _ placeholder for non-first argument
 todo |> json.MarshalWrite(w, _)   # → json.MarshalWrite(w, todo)
+
+# `_` is reserved for this purpose and as the blank assignment target.
+# Reading it as a value (`fmt.Println(_)`, `x := _ + 1`) is a compile error.
 
 # Bare identifier as target
 data |> print                     # → fmt.Println(data)
@@ -679,19 +697,31 @@ defer db.Close(pool)
 
 **llm** — Shared schema utilities: `Prop`, `Schema`, `Required` (for building tool parameter schemas)
 
-**llm/chat** — Chat Completions API (OpenAI-compatible): `New`/`Ask`/`Send`/`SendRaw`/`Complete`; `System`/`User`/`Assistant`; `Temperature`/`MaxTokens`/`Stream`/`Retry`/`WithContext`; `GetText`/`GetToolCalls`
+**llm/chat** — Chat Completions API (OpenAI-compatible): `New`/`Ask`/`Send`/`SendRaw`/`Complete`/`CompleteWithSystem`; `System`/`User`/`Assistant`; `Temperature`/`MaxTokens`/`Stream`/`StreamEvents`/`Retry`/`WithContext`; `AddTool`/`JSONMode`; `FromCompletion`/`ExecuteToolCalls`; `GetText`/`GetToolCalls`/`HasToolCalls`
 
-**llm/responses** — OpenResponses API: `New`/`Ask`/`Send`/`AskRaw`/`SendRaw`/`Respond`; `Instructions`/`User`/`System`/`PreviousResponse`; `Temperature`/`MaxOutputTokens`/`Stream`/`StreamEvents`/`Retry`; `GetText`/`GetFunctionCalls`
+**llm/responses** — OpenResponses API: `New`/`Ask`/`Send`/`AskRaw`/`SendRaw`/`Respond`/`RespondWithInstructions`; `Instructions`/`User`/`System`/`Developer`/`PreviousResponse`; `Temperature`/`MaxOutputTokens`/`Stream`/`StreamEvents`/`Retry`/`WithContext`; `AddTool`/`JSONMode`/`JSONSchema`/`Store`; `FromResponse`/`ExecuteFunctionCalls`/`FunctionCallOutput`; `GetText`/`GetFunctionCalls`/`HasFunctionCalls`
 
-**llm/anthropic** — Anthropic Messages API: `New`/`Ask`/`Send`/`AskRaw`/`SendRaw`/`Complete`; `System`/`User`/`Assistant`/`ToolResult`; `Temperature`/`MaxTokens`/`AdaptiveThinking`/`Effort`/`Stream`/`StreamEvents`/`Retry`; `GetText`/`GetThinking`/`GetToolUses`
+**llm/anthropic** — Anthropic Messages API: `New`/`Ask`/`Send`/`AskRaw`/`SendRaw`/`Complete`/`CompleteWithSystem`; `System`/`User`/`Assistant`/`ToolResult`; `Temperature`/`MaxTokens`/`AdaptiveThinking`/`Effort`/`Stream`/`StreamEvents`/`Retry`/`WithContext`; `AddTool`; `FromResponse`/`ExecuteToolUses`; `GetText`/`GetThinking`/`GetToolUses`/`HasToolUses`
 
 ```kukicha
+import "stdlib/llm"
 import "stdlib/llm/chat"
 
+# one-shot
 reply := chat.New("openai:gpt-4o-mini") |> chat.Retry(3, 2000) |> chat.Ask("Hello!") onerr panic "{error}"
+
+# agentic tool loop
+schema := llm.Schema(list of llm.SchemaProperty{llm.Prop("city", "string", "City name")}) |> llm.Required(list of string{"city"})
+c := chat.New("openai:gpt-4o-mini") |> chat.AddTool("get_weather", "Get weather", schema) |> chat.User("Weather in Paris?")
+comp := c |> chat.SendRaw onerr panic "{error}"
+if chat.HasToolCalls(comp)
+    handlers := make(map of string to func(string) string)
+    handlers["get_weather"] = (args string) => "Sunny, 22°C"
+    c = chat.ExecuteToolCalls(c, comp, handlers) onerr panic "{error}"
+    reply = c |> chat.Send onerr panic "{error}"
 ```
 
-**mcp** — MCP server + client: `New`, `Tool`, `Serve`, `Connect`, `BearerConnect`, `ListTools`, `CallTool`
+**mcp** — MCP server + client: `New`, `Serve`, `ServeHTTP`, `Tool`, `ToolWithOpts`, `ToolRich`, `Resource`, `TextResource`, `ResourceTemplate`, `TextResourceTemplate`, `Prompt`, `UserPrompt`, `Prop`, `Schema`, `Required`, `TextResult`, `ErrorResult`, `Connect`, `BearerConnect`, `ConnectWithClient`, `Close`, `ListTools`, `CallTool`, `ListResources`, `ListResourceTemplates`, `ReadResource`, `ListPrompts`, `GetPrompt`, `NewWithCompletion`, `Completions`, `CompletionsPage`, `NewRouter`
 
 ```kukicha
 # Server
