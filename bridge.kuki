@@ -127,4 +127,4 @@ func callBridgeTool(ctx context.Context, b reference Bridge, name string, argsJS
     return "", error "server {route.ServerName} not connected"
 
 func sanitizeName(name string) string
-    return regex.Replace(name, `[-/ ]`, "_")
+    return regex.Replace(`[-/ ]`, "_", name)
