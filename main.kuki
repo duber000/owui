@@ -30,6 +30,7 @@ func main()
     flagChat := false
     flagRaw := false
     flagSystem := ""
+    flagSchema := false
     positional := make(list of string, 0)
 
     i := 0
@@ -51,6 +52,8 @@ func main()
                 flagSystem = args[i]
         else if strpkg.HasPrefix(arg, "--system=")
             flagSystem = strpkg.TrimPrefix(arg, "--system=")
+        else if arg equals "--schema"
+            flagSchema = true
         else if arg equals "-h" or arg equals "--help"
             printUsage()
             return
@@ -67,7 +70,7 @@ func main()
 
             return
         if cmd equals "tools"
-            cmdListTools() onerr
+            cmdListTools(flagSchema) onerr
                 cli.Fatal(color.BrightRed("error: {error}"))
 
             return
@@ -195,7 +198,7 @@ func cmdListModels() error
 
     return empty
 
-func cmdListTools() error
+func cmdListTools(showSchema bool) error
     cfg := loadConfig()
     ctx := context.Background()
 
@@ -205,8 +208,11 @@ func cmdListTools() error
     registerLocalTools(bridge, cfg) onerr return
 
     print(color.Bold(color.Yellow("Available tools:")))
-    for _, name in bridgeToolNames(bridge)
-        print("  {name}")
+    for _, t in bridgeTools(bridge)
+        print("  {t.Function.Name}")
+        if showSchema
+            b, _ := jsonpkg.MarshalPretty(t.Function.Parameters)
+            print("    {b as string}")
 
     return empty
 
