@@ -230,7 +230,7 @@ you need both side effects (logging, metrics) AND a default value.
 result := data |> parse() |> transform()
 
 # _ placeholder for non-first argument
-todo |> json.MarshalWrite(w, _)   # → json.MarshalWrite(w, todo)
+todo |> json.Write(w, _)   # → json.Write(w, todo)
 
 # `_` is reserved for this purpose and as the blank assignment target.
 # Reading it as a value (`fmt.Println(_)`, `x := _ + 1`) is a compile error.
@@ -522,7 +522,7 @@ names := repos
 
 #### Data & Encoding
 
-**json** (as `jsonpkg`) — `Marshal`, `MarshalPretty`, `Unmarshal`, `MarshalWrite`, `UnmarshalRead`, `PrettyString`
+**json** (as `jsonpkg`) — `Bytes`, `PrettyBytes`, `ParseInto`, `ParseStringInto`, `Write`, `ReadInto`, `Read`, `Parse`, `ParseString`, `Pretty`
 
 **parse** — `JSON of T from text`, `YAML of T from text`, `Form of T from values`, `Env of T from prefix` (parse + auto-Validate, return `(T, list of validate.FieldError)`); `JSONLines`, `CSV`, `CSVRecords`, `Lines`, `Duration`, `URL`, `Query`
 

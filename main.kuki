@@ -187,7 +187,7 @@ func cmdListModels() error
         return error "HTTP {resp.StatusCode}: {body as string}"
 
     models := ModelsResponse{}
-    jsonpkg.UnmarshalRead(resp.Body, reference of models) onerr return
+    jsonpkg.ReadInto(resp.Body, reference of models) onerr return
 
     print(color.Bold(color.Cyan("Available models:")))
     for _, m in models.Data
@@ -211,7 +211,7 @@ func cmdListTools(showSchema bool) error
     for _, t in bridgeTools(bridge)
         print("  {t.Function.Name}")
         if showSchema
-            b, _ := jsonpkg.MarshalPretty(t.Function.Parameters)
+            b, _ := jsonpkg.PrettyBytes(t.Function.Parameters)
             print("    {b as string}")
 
     return empty
