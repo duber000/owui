@@ -524,7 +524,7 @@ names := repos
 
 **json** (as `jsonpkg`) — `Marshal`, `MarshalPretty`, `Unmarshal`, `MarshalWrite`, `UnmarshalRead`, `PrettyString`
 
-**parse** — `Json`, `JsonLines`, `Csv`, `CsvWithHeader`, `Yaml`, `YamlPretty`
+**parse** — `JSON of T from text`, `YAML of T from text`, `Form of T from values`, `Env of T from prefix` (parse + auto-Validate, return `(T, list of validate.FieldError)`); `JSONLines`, `CSV`, `CSVRecords`, `Lines`, `Duration`, `URL`, `Query`
 
 **encoding** — `Base64Encode`, `Base64Decode`, `HexEncode`, `HexDecode`
 
@@ -546,13 +546,18 @@ box := sandbox.New("/var/data") onerr return
 content := sandbox.Read(box, userPath) onerr return   # can't escape root
 ```
 
-**shell** — `Run` (fixed literals only), `Output` (variable args), `Lines` (stdout split into lines, trailing empty stripped), `New`/`Dir`/`Env`/`Execute` (builder), `Require` (stdout or err-wrapping-stderr; pairs with `Execute` in pipes)
+**shell** — `Run` (fixed literals only), `Output` (variable args), `Lines` (stdout split into lines, trailing empty stripped), `New`/`Dir`/`Env`/`Execute` (builder), `Stdin`/`StdinBytes` (feed bytes to subprocess stdin then EOF), `Require` (stdout or err-wrapping-stderr; pairs with `Execute` in pipes)
 
 ```kukicha
 diff  := shell.Run("git diff --staged") onerr panic "{error}"
 out   := shell.Output("git", "log", "--oneline", branch) onerr panic "{error}"
 files := shell.Lines("git", "ls-files") onerr return
 tests := shell.New("go", "test", "./...") |> shell.Execute() |> shell.Require() onerr return
+
+# Pipe input into a subprocess (signals EOF after writing the bytes)
+reply := shell.New("claude", "--print")
+    |> .Stdin(prompt)
+    |> .Output() onerr return
 ```
 
 #### HTTP & Networking
@@ -677,7 +682,7 @@ defer db.Close(pool)
 
 **crypto** — `SHA256`, `HMAC`, `RandomToken`, `RandomBytes`, `Equal` (constant-time)
 
-**validate** — `Email`, `URL`, `NotEmpty`, `MinLength`, `MaxLength`, `InRange`, `Matches`, `NoHTML`, `SafeFilename`
+**validate** — pipe-style: `Email`, `URL`, `NotEmpty`, `MinLength`, `MaxLength`, `InRange`, `Matches`, `NoHTML`, `SafeFilename`. Tag-driven: attach `# kuki:validate "rule[,rule…]"` above struct fields; the compiler emits `Validate()` returning `list of FieldError`. Rules: `nonempty`, `nonzero`, `min=N`, `max=N`, `len=N`, `email`, `url`, `regex=PAT`, `oneof=a|b|c`. Pair with `parse.JSON of T from body` for one-call parse-and-validate. `validate.RunTags(v)` runs the generated method even when the user defines their own `Validate`.
 
 **random** — `String`, `Alphanumeric`, `Int`, `Float`
 
@@ -742,13 +747,19 @@ result := mcp.CallTool(ctx, session, "get_price", args) onerr panic "{error}"
 
 #### External Packages (separate modules)
 
-**game** (WASM-only) — 2D game lib: `Window`, `Run`, `DrawRect`, `DrawCircle`, `DrawText`, `IsKeyDown`, `MousePosition`
+These packages require adding a separate Go module to your project — they are not bundled with the Kukicha compiler.
 
-**infer** / **ort** / **webinfer** — ML inference (`github.com/kukichalang/infer`)
+**game** (WASM-only) — 2D game lib: `Window`, `Run`, `DrawRect`, `DrawCircle`, `DrawText`, `IsKeyDown`, `MousePosition`
+Module: `github.com/kukichalang/game` — add with `go get github.com/kukichalang/game`
+
+**infer** / **ort** / **webinfer** — ML inference
+Module: `github.com/kukichalang/infer` — add with `go get github.com/kukichalang/infer`
 
 ---
 
-**All packages:** `cast`, `cli`, `concurrent`, `container`, `crypto`, `ctx`, `datetime`, `db`, `encoding`, `env`, `errors`, `fetch`, `files`, `game`, `git`, `html`, `http`, `infer`, `input`, `iterator`, `json`, `llm`, `maps`, `mcp`, `must`, `net`, `netguard`, `obs`, `ort`, `parse`, `random`, `regex`, `retry`, `sandbox`, `semver`, `set`, `shell`, `skills`, `slice`, `sort`, `sqlite`, `string`, `table`, `template`, `test`, `validate`, `webinfer`
+**Built-in packages:** `cast`, `cli`, `concurrent`, `container`, `crypto`, `ctx`, `datetime`, `db`, `encoding`, `env`, `errors`, `fetch`, `files`, `git`, `html`, `http`, `input`, `iterator`, `json`, `llm`, `maps`, `mcp`, `must`, `net`, `netguard`, `obs`, `parse`, `random`, `regex`, `retry`, `sandbox`, `semver`, `set`, `shell`, `skills`, `slice`, `sort`, `sqlite`, `string`, `table`, `template`, `test`, `validate`
+
+**External packages** (separate module required): `game`, `infer`, `ort`, `webinfer`
 
 ---
 
