@@ -22,16 +22,34 @@ import "stdlib/string" as strpkg
 
 func defaultCmdAllowList() list of string
     return list of string{
-        "bd", "cat", "cp", "date", "diff", "echo", "find", "git",
-        "grep", "head", "ls", "mkdir", "mv", "pwd", "rm", "sort",
-        "tail", "touch", "uniq", "wc", "which",
+        "bd",
+        "cat",
+        "cp",
+        "date",
+        "diff",
+        "echo",
+        "find",
+        "git",
+        "grep",
+        "head",
+        "ls",
+        "mkdir",
+        "mv",
+        "pwd",
+        "rm",
+        "sort",
+        "tail",
+        "touch",
+        "uniq",
+        "wc",
+        "which",
     }
 
 # LocalTools holds the sandbox root and optional network guard.
 type LocalTools
-    Box         sandbox.Root
-    Guard       netguard.Guard
-    HasGuard    bool
+    Box sandbox.Root
+    Guard netguard.Guard
+    HasGuard bool
     AllowedCmds map of string to bool
 
 # buildLocalTools initialises sandbox + optional netguard from Config.
@@ -71,7 +89,14 @@ func closeLocalTools(lt LocalTools) error
 func registerLocalTools(b reference Bridge, cfg Config) error
     lt := buildLocalTools(cfg) onerr return
     b.LocalTools = lt
-    for _, name in list of string{"read_file", "write_file", "list_dir", "search_files", "grep_files", "run_command"}
+    for _, name in list of string{
+        "read_file",
+        "write_file",
+        "list_dir",
+        "search_files",
+        "grep_files",
+        "run_command",
+    }
         b.LocalToolNames[name] = true
     return empty
 
@@ -82,10 +107,10 @@ func toolDef(name string, description string, schema map of string to any) chat.
     return chat.Tool{
         Type: "function",
         Function: chat.ToolFunction{
-            Name: name,
-            Description: description,
-            Parameters: schema,
-        },
+        Name: name,
+        Description: description,
+        Parameters: schema,
+    },
     }
 
 func localToolDefs() list of chat.Tool
@@ -115,14 +140,14 @@ func localToolDefs() list of chat.Tool
     # expresses scalar types today, so build this one by hand.
     runProps := map of string to any{
         "cmd": map of string to any{
-            "type": "string",
-            "description": "Command name — allowed: bd cat cp date diff echo find git grep head ls mkdir mv pwd rm sort tail touch uniq wc which",
-        },
+        "type": "string",
+        "description": "Command name — allowed: bd cat cp date diff echo find git grep head ls mkdir mv pwd rm sort tail touch uniq wc which",
+    },
         "args": map of string to any{
-            "type": "array",
-            "items": map of string to any{"type": "string"},
-            "description": "Command arguments",
-        },
+        "type": "array",
+        "items": map of string to any{"type": "string"},
+        "description": "Command arguments",
+    },
     }
     runSchema := map of string to any{
         "type": "object",
@@ -134,7 +159,11 @@ func localToolDefs() list of chat.Tool
         toolDef("read_file", "Read the contents of a file within the sandbox", readSchema),
         toolDef("write_file", "Write or overwrite a file within the sandbox", writeSchema),
         toolDef("list_dir", "List files and directories within a sandbox directory", listSchema),
-        toolDef("search_files", "Search for files matching a name pattern within the sandbox", searchSchema),
+        toolDef(
+        "search_files",
+        "Search for files matching a name pattern within the sandbox",
+        searchSchema,
+    ),
         toolDef("grep_files", "Search file contents for a pattern within the sandbox", grepSchema),
         toolDef("run_command", "Run an allowlisted shell command in the sandbox directory", runSchema),
     }
@@ -184,16 +213,14 @@ type runCommandArgs
 # ---- Implementations ----
 
 func localReadFile(lt LocalTools, argsJSON string) (string, error)
-    a := readFileArgs{}
-    jsonpkg.UnmarshalString(argsJSON, reference of a) onerr return "", error "read_file: bad args: {error}"
+    a := jsonpkg.ParseString of readFileArgs from argsJSON onerr return "", error "read_file: bad args: {error}"
     if a.Path equals ""
         return "", error "read_file: missing path"
     content := sandbox.ReadString(lt.Box, a.Path) onerr return "", error "read_file: {error}"
     return content, empty
 
 func localWriteFile(lt LocalTools, argsJSON string) (string, error)
-    a := writeFileArgs{}
-    jsonpkg.UnmarshalString(argsJSON, reference of a) onerr return "", error "write_file: bad args: {error}"
+    a := jsonpkg.ParseString of writeFileArgs from argsJSON onerr return "", error "write_file: bad args: {error}"
     if a.Path equals ""
         return "", error "write_file: missing path"
     sandbox.WriteString(lt.Box, a.Content, a.Path) onerr return "", error "write_file: {error}"
@@ -202,7 +229,7 @@ func localWriteFile(lt LocalTools, argsJSON string) (string, error)
 func localListDir(lt LocalTools, argsJSON string) (string, error)
     a := listDirArgs{}
     if argsJSON isnt "" and argsJSON isnt "{}"
-        jsonpkg.UnmarshalString(argsJSON, reference of a) onerr return "", error "list_dir: bad args: {error}"
+        a = jsonpkg.ParseString of listDirArgs from argsJSON onerr return "", error "list_dir: bad args: {error}"
     path := a.Path
     if path equals ""
         path = "."
@@ -212,8 +239,7 @@ func localListDir(lt LocalTools, argsJSON string) (string, error)
     return strpkg.Join(names, "\n"), empty
 
 func localSearchFiles(lt LocalTools, argsJSON string) (string, error)
-    a := searchFilesArgs{}
-    jsonpkg.UnmarshalString(argsJSON, reference of a) onerr return "", error "search_files: bad args: {error}"
+    a := jsonpkg.ParseString of searchFilesArgs from argsJSON onerr return "", error "search_files: bad args: {error}"
     if a.Pattern equals ""
         return "", error "search_files: missing pattern"
     sandboxPath := lt.Box.Path
@@ -231,8 +257,7 @@ func localSearchFiles(lt LocalTools, argsJSON string) (string, error)
     return strpkg.Join(results, "\n"), empty
 
 func localGrepFiles(lt LocalTools, argsJSON string) (string, error)
-    a := grepFilesArgs{}
-    jsonpkg.UnmarshalString(argsJSON, reference of a) onerr return "", error "grep_files: bad args: {error}"
+    a := jsonpkg.ParseString of grepFilesArgs from argsJSON onerr return "", error "grep_files: bad args: {error}"
     if a.Pattern equals ""
         return "", error "grep_files: missing pattern"
     sandboxPath := lt.Box.Path
@@ -255,8 +280,7 @@ func localGrepFiles(lt LocalTools, argsJSON string) (string, error)
     return strpkg.Join(results, "\n"), empty
 
 func localRunCommand(lt LocalTools, argsJSON string) (string, error)
-    a := runCommandArgs{}
-    jsonpkg.UnmarshalString(argsJSON, reference of a) onerr return "", error "run_command: bad args: {error}"
+    a := jsonpkg.ParseString of runCommandArgs from argsJSON onerr return "", error "run_command: bad args: {error}"
     if a.Cmd equals ""
         return "", error "run_command: missing cmd"
     _, ok := lt.AllowedCmds[a.Cmd]

@@ -21,9 +21,9 @@ type BridgeServer
     Tools list of mcp.ClientTool
 
 type Bridge
-    Servers        list of reference BridgeServer
-    ToolMap        map of string to ToolRoute
-    LocalTools     LocalTools
+    Servers list of reference BridgeServer
+    ToolMap map of string to ToolRoute
+    LocalTools LocalTools
     LocalToolNames map of string to bool
 
 func connectBridges(ctx context.Context, configs map of string to MCPServerConfig) (reference Bridge, error)
@@ -94,7 +94,7 @@ func bridgeToolCount(b reference Bridge) int
     return count
 
 func bridgeToolNames(b reference Bridge) list of string
-    names := make(list of string, 0, len(b.LocalToolNames)+len(b.ToolMap))
+    names := make(list of string, 0, len(b.LocalToolNames) + len(b.ToolMap))
     for k, _ in b.LocalToolNames
         names = append(names, k)
     for k, _ in b.ToolMap
@@ -115,7 +115,7 @@ func callBridgeTool(ctx context.Context, b reference Bridge, name string, argsJS
         if s.Name equals route.ServerName
             args := make(map of string to any)
             if argsJSON isnt "" and argsJSON isnt "{}"
-                jsonpkg.UnmarshalString(argsJSON, reference of args) onerr return "", error "invalid tool arguments: {error}"
+                args = jsonpkg.ParseString of map of string to any from argsJSON onerr return "", error "invalid tool arguments: {error}"
 
             result := mcp.CallTool(ctx, s.Session, route.OriginalName, args) onerr return "", error "{error}"
 

@@ -44,7 +44,7 @@ func loadConfig() Config
     # Try loading from config file
     data := files.ReadString(defaultConfigPath()) onerr ""
     if data isnt ""
-        jsonpkg.UnmarshalString(data, reference of cfg) onerr panic "invalid config.json: {error}"
+        cfg = jsonpkg.ParseString of Config from data onerr panic "invalid config.json: {error}"
 
     if cfg.MCPServers equals empty
         cfg.MCPServers = make(map of string to MCPServerConfig)
