@@ -194,7 +194,7 @@ func cmdListTools(showSchema bool) error
     for _, t in bridgeTools(bridge)
         print("  {t.Function.Name}")
         if showSchema
-            b, _ := jsonpkg.PrettyBytes(t.Function.Parameters)
+            b := jsonpkg.PrettyBytes(t.Function.Parameters) onerr empty
             print("    {b as string}")
 
     return empty
@@ -322,7 +322,7 @@ func gatherPrompt(args list of string) string
 
     # Simple heuristic: assume not a terminal if TERM is empty and no args
     if not isTerminal(os.Stdin) and len(args) equals 0
-        data, _ := io.ReadAll(os.Stdin)
+        data := io.ReadAll(os.Stdin) onerr empty
         prompt = strpkg.TrimSpace(data as string)
 
     if len(args) > 0

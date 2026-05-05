@@ -26,7 +26,7 @@ type Config
     CmdAllowList list of string as "cmd_allow"
 
 func defaultConfigPath() string
-    home, _ := os.UserHomeDir()
+    home := os.UserHomeDir() onerr ""
     return files.Join(home, ".config", "owui", "config.json")
 
 func loadConfig() Config
