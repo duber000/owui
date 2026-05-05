@@ -23,43 +23,25 @@ var version string = "dev"
 # ---- Entrypoint ----
 
 func main()
-    args := os.Args[1:]
+    flagParser := cli.New("owui")
+        |> .StringFlag("model", "Model to use", "")
+        |> .Short("model", "m")
+        |> .BoolFlag("chat", "Interactive chat mode", false)
+        |> .Short("chat", "c")
+        |> .BoolFlag("raw", "Raw output (no streaming indicators)", false)
+        |> .StringFlag("system", "System prompt override", "")
+        |> .Short("system", "S")
+        |> .BoolFlag("schema", "Show tool schemas", false)
+        |> .RestArg("args")
 
-    # Parse flags from args, separating them from positional args
-    flagModel := ""
-    flagChat := false
-    flagRaw := false
-    flagSystem := ""
-    flagSchema := false
-    positional := make(list of string, 0)
+    parsed := cli.ParseArgs(flagParser, os.Args)
 
-    i := 0
-    for i < len(args)
-        arg := args[i]
-        if arg equals "-m" or arg equals "--model"
-            i = i + 1
-            if i < len(args)
-                flagModel = args[i]
-        else if strpkg.HasPrefix(arg, "--model=")
-            flagModel = strpkg.TrimPrefix(arg, "--model=")
-        else if arg equals "-c" or arg equals "--chat"
-            flagChat = true
-        else if arg equals "--raw"
-            flagRaw = true
-        else if arg equals "-S" or arg equals "--system"
-            i = i + 1
-            if i < len(args)
-                flagSystem = args[i]
-        else if strpkg.HasPrefix(arg, "--system=")
-            flagSystem = strpkg.TrimPrefix(arg, "--system=")
-        else if arg equals "--schema"
-            flagSchema = true
-        else if arg equals "-h" or arg equals "--help"
-            printUsage()
-            return
-        else
-            positional = append(positional, arg)
-        i = i + 1
+    flagModel  := cli.GetString(parsed, "model")
+    flagChat   := cli.GetBool(parsed, "chat")
+    flagRaw    := cli.GetBool(parsed, "raw")
+    flagSystem := cli.GetString(parsed, "system")
+    flagSchema := cli.GetBool(parsed, "schema")
+    positional := cli.GetRest(parsed, "args")
 
     # Dispatch subcommands
     if len(positional) > 0
@@ -91,6 +73,7 @@ func main()
     # Default: agent mode
     cmdRun(positional, flagModel, flagChat, flagRaw, flagSystem) onerr
         cli.Fatal(color.BrightRed("error: {error}"))
+
 
 # ---- Agent mode ----
 
