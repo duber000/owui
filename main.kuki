@@ -24,15 +24,15 @@ var version string = "dev"
 
 func main()
     flagParser := cli.New("owui")
-        |> .StringFlag("model", "Model to use", "")
-        |> .Short("model", "m")
-        |> .BoolFlag("chat", "Interactive chat mode", false)
-        |> .Short("chat", "c")
-        |> .BoolFlag("raw", "Raw output (no streaming indicators)", false)
-        |> .StringFlag("system", "System prompt override", "")
-        |> .Short("system", "S")
-        |> .BoolFlag("schema", "Show tool schemas", false)
-        |> .RestArg("args")
+        |> cli.StringFlag("model", "Model to use", "")
+        |> cli.Short("m")
+        |> cli.BoolFlag("chat", "Interactive chat mode", false)
+        |> cli.Short("c")
+        |> cli.BoolFlag("raw", "Raw output (no streaming indicators)", false)
+        |> cli.StringFlag("system", "System prompt override", "")
+        |> cli.Short("S")
+        |> cli.BoolFlag("schema", "Show tool schemas", false)
+        |> cli.RestArg("args", "Positional arguments / prompt")
 
     parsed := cli.ParseArgs(flagParser, os.Args)
 
@@ -194,7 +194,8 @@ func cmdListTools(showSchema bool) error
     for _, t in bridgeTools(bridge)
         print("  {t.Function.Name}")
         if showSchema
-            b := jsonpkg.PrettyBytes(t.Function.Parameters) onerr empty
+            b := jsonpkg.PrettyBytes(t.Function.Parameters) onerr
+                fallback empty list of byte
             print("    {b as string}")
 
     return empty
@@ -322,7 +323,8 @@ func gatherPrompt(args list of string) string
 
     # Simple heuristic: assume not a terminal if TERM is empty and no args
     if not isTerminal(os.Stdin) and len(args) equals 0
-        data := io.ReadAll(os.Stdin) onerr empty
+        data := io.ReadAll(os.Stdin) onerr
+            fallback empty list of byte
         prompt = strpkg.TrimSpace(data as string)
 
     if len(args) > 0

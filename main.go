@@ -375,7 +375,12 @@ type Config struct {
 //line config.kuki:28
 func defaultConfigPath() string {
 //line config.kuki:29
-	home, _ := os.UserHomeDir()
+	home, err_8 := os.UserHomeDir()
+//line config.kuki:29
+	if err_8 != nil {
+//line config.kuki:29
+		home = ""
+	}
 //line config.kuki:30
 	return files.Join(home, ".config", "owui", "config.json")
 }
@@ -385,21 +390,21 @@ func loadConfig() Config {
 //line config.kuki:33
 	cfg := Config{WebUIURL: "http://localhost:3000", TerminalMCPURL: "http://127.0.0.1:9000/mcp", Model: "llama3.1", MaxToolRounds: 15, MCPServers: make(map[string]MCPServerConfig), IPAllowList: make([]string, 0), IPBlockList: make([]string, 0), CmdAllowList: make([]string, 0)}
 //line config.kuki:45
-	data, err_8 := files.ReadString(defaultConfigPath())
+	data, err_9 := files.ReadString(defaultConfigPath())
 //line config.kuki:45
-	if err_8 != nil {
+	if err_9 != nil {
 //line config.kuki:45
 		data = ""
 	}
 //line config.kuki:46
 	if data != "" {
 //line config.kuki:47
-		var err_9 error
-		cfg, err_9 = jsonpkg.ParseString[Config](data)
+		var err_10 error
+		cfg, err_10 = jsonpkg.ParseString[Config](data)
 //line config.kuki:47
-		if err_9 != nil {
+		if err_10 != nil {
 //line config.kuki:47
-			panic(fmt.Sprintf("invalid config.json: %v", err_9))
+			panic(fmt.Sprintf("invalid config.json: %v", err_10))
 		}
 	}
 //line config.kuki:49
@@ -464,19 +469,19 @@ func saveConfig(cfg Config) error {
 	path := defaultConfigPath()
 //line config.kuki:84
 //line config.kuki:84
-	err_10 := files.MkDirAll(files.Dirname(path))
+	err_11 := files.MkDirAll(files.Dirname(path))
 //line config.kuki:84
-	if err_10 != nil {
+	if err_11 != nil {
 //line config.kuki:84
-		return err_10
+		return err_11
 	}
 //line config.kuki:85
 //line config.kuki:85
-	err_11 := files.Write(cfg, path)
+	err_12 := files.Write(cfg, path)
 //line config.kuki:85
-	if err_11 != nil {
+	if err_12 != nil {
 //line config.kuki:85
-		return err_11
+		return err_12
 	}
 //line config.kuki:86
 	return nil
@@ -516,41 +521,41 @@ func buildLocalTools(cfg Config) (LocalTools, error) {
 //line local_tools.kuki:61
 	if sandboxDir == "" {
 //line local_tools.kuki:62
-		cwd, err_12 := os.Getwd()
+		cwd, err_13 := os.Getwd()
 //line local_tools.kuki:62
-		if err_12 != nil {
+		if err_13 != nil {
 //line local_tools.kuki:62
-			err_12 = fmt.Errorf("sandbox cwd: %w", err_12)
+			err_13 = fmt.Errorf("sandbox cwd: %w", err_13)
 			var _zero0 LocalTools
 //line local_tools.kuki:62
-			return _zero0, err_12
+			return _zero0, err_13
 		}
 //line local_tools.kuki:63
 		sandboxDir = cwd
 	}
 //line local_tools.kuki:65
-	box, err_13 := sandbox.New(sandboxDir)
+	box, err_14 := sandbox.New(sandboxDir)
 //line local_tools.kuki:65
-	if err_13 != nil {
+	if err_14 != nil {
 //line local_tools.kuki:65
-		err_13 = fmt.Errorf("sandbox: %w", err_13)
+		err_14 = fmt.Errorf("sandbox: %w", err_14)
 		var _zero0 LocalTools
 //line local_tools.kuki:65
-		return _zero0, err_13
+		return _zero0, err_14
 	}
 //line local_tools.kuki:66
 	lt.Box = box
 //line local_tools.kuki:68
 	if len(cfg.IPAllowList) > 0 {
 //line local_tools.kuki:69
-		g, err_14 := netguard.NewAllow(cfg.IPAllowList)
+		g, err_15 := netguard.NewAllow(cfg.IPAllowList)
 //line local_tools.kuki:69
-		if err_14 != nil {
+		if err_15 != nil {
 //line local_tools.kuki:69
-			err_14 = fmt.Errorf("netguard allow: %w", err_14)
+			err_15 = fmt.Errorf("netguard allow: %w", err_15)
 			var _zero0 LocalTools
 //line local_tools.kuki:69
-			return _zero0, err_14
+			return _zero0, err_15
 		}
 //line local_tools.kuki:70
 		lt.Guard = g
@@ -558,14 +563,14 @@ func buildLocalTools(cfg Config) (LocalTools, error) {
 		lt.HasGuard = true
 	} else if len(cfg.IPBlockList) > 0 {
 //line local_tools.kuki:73
-		g, err_15 := netguard.NewBlock(cfg.IPBlockList)
+		g, err_16 := netguard.NewBlock(cfg.IPBlockList)
 //line local_tools.kuki:73
-		if err_15 != nil {
+		if err_16 != nil {
 //line local_tools.kuki:73
-			err_15 = fmt.Errorf("netguard block: %w", err_15)
+			err_16 = fmt.Errorf("netguard block: %w", err_16)
 			var _zero0 LocalTools
 //line local_tools.kuki:73
-			return _zero0, err_15
+			return _zero0, err_16
 		}
 //line local_tools.kuki:74
 		lt.Guard = g
@@ -597,11 +602,11 @@ func closeLocalTools(lt LocalTools) error {
 //line local_tools.kuki:89
 func registerLocalTools(b *Bridge, cfg Config) error {
 //line local_tools.kuki:90
-	lt, err_16 := buildLocalTools(cfg)
+	lt, err_17 := buildLocalTools(cfg)
 //line local_tools.kuki:90
-	if err_16 != nil {
+	if err_17 != nil {
 //line local_tools.kuki:90
-		return err_16
+		return err_17
 	}
 //line local_tools.kuki:91
 	b.LocalTools = lt
@@ -704,11 +709,11 @@ type runCommandArgs struct {
 //line local_tools.kuki:215
 func localReadFile(lt LocalTools, argsJSON string) (string, error) {
 //line local_tools.kuki:216
-	a, err_17 := jsonpkg.ParseString[readFileArgs](argsJSON)
+	a, err_18 := jsonpkg.ParseString[readFileArgs](argsJSON)
 //line local_tools.kuki:216
-	if err_17 != nil {
+	if err_18 != nil {
 //line local_tools.kuki:216
-		return "", fmt.Errorf("read_file: bad args: %v", err_17)
+		return "", fmt.Errorf("read_file: bad args: %v", err_18)
 	}
 //line local_tools.kuki:217
 	if a.Path == "" {
@@ -716,11 +721,11 @@ func localReadFile(lt LocalTools, argsJSON string) (string, error) {
 		return "", errors.New("read_file: missing path")
 	}
 //line local_tools.kuki:219
-	content, err_18 := sandbox.ReadString(lt.Box, a.Path)
+	content, err_19 := sandbox.ReadString(lt.Box, a.Path)
 //line local_tools.kuki:219
-	if err_18 != nil {
+	if err_19 != nil {
 //line local_tools.kuki:219
-		return "", fmt.Errorf("read_file: %v", err_18)
+		return "", fmt.Errorf("read_file: %v", err_19)
 	}
 //line local_tools.kuki:220
 	return content, nil
@@ -729,11 +734,11 @@ func localReadFile(lt LocalTools, argsJSON string) (string, error) {
 //line local_tools.kuki:222
 func localWriteFile(lt LocalTools, argsJSON string) (string, error) {
 //line local_tools.kuki:223
-	a, err_19 := jsonpkg.ParseString[writeFileArgs](argsJSON)
+	a, err_20 := jsonpkg.ParseString[writeFileArgs](argsJSON)
 //line local_tools.kuki:223
-	if err_19 != nil {
+	if err_20 != nil {
 //line local_tools.kuki:223
-		return "", fmt.Errorf("write_file: bad args: %v", err_19)
+		return "", fmt.Errorf("write_file: bad args: %v", err_20)
 	}
 //line local_tools.kuki:224
 	if a.Path == "" {
@@ -742,11 +747,11 @@ func localWriteFile(lt LocalTools, argsJSON string) (string, error) {
 	}
 //line local_tools.kuki:226
 //line local_tools.kuki:226
-	err_20 := sandbox.WriteString(lt.Box, a.Content, a.Path)
+	err_21 := sandbox.WriteString(lt.Box, a.Content, a.Path)
 //line local_tools.kuki:226
-	if err_20 != nil {
+	if err_21 != nil {
 //line local_tools.kuki:226
-		return "", fmt.Errorf("write_file: %v", err_20)
+		return "", fmt.Errorf("write_file: %v", err_21)
 	}
 //line local_tools.kuki:227
 	return fmt.Sprintf("wrote %v bytes to %v", len(a.Content), a.Path), nil
@@ -759,12 +764,12 @@ func localListDir(lt LocalTools, argsJSON string) (string, error) {
 //line local_tools.kuki:231
 	if (argsJSON != "") && (argsJSON != "{}") {
 //line local_tools.kuki:232
-		var err_21 error
-		a, err_21 = jsonpkg.ParseString[listDirArgs](argsJSON)
+		var err_22 error
+		a, err_22 = jsonpkg.ParseString[listDirArgs](argsJSON)
 //line local_tools.kuki:232
-		if err_21 != nil {
+		if err_22 != nil {
 //line local_tools.kuki:232
-			return "", fmt.Errorf("list_dir: bad args: %v", err_21)
+			return "", fmt.Errorf("list_dir: bad args: %v", err_22)
 		}
 	}
 //line local_tools.kuki:233
@@ -775,11 +780,11 @@ func localListDir(lt LocalTools, argsJSON string) (string, error) {
 		path = "."
 	}
 //line local_tools.kuki:236
-	names, err_22 := sandbox.List(lt.Box, path)
+	names, err_23 := sandbox.List(lt.Box, path)
 //line local_tools.kuki:236
-	if err_22 != nil {
+	if err_23 != nil {
 //line local_tools.kuki:236
-		return "", fmt.Errorf("list_dir: %v", err_22)
+		return "", fmt.Errorf("list_dir: %v", err_23)
 	}
 //line local_tools.kuki:237
 	if len(names) == 0 {
@@ -793,11 +798,11 @@ func localListDir(lt LocalTools, argsJSON string) (string, error) {
 //line local_tools.kuki:241
 func localSearchFiles(lt LocalTools, argsJSON string) (string, error) {
 //line local_tools.kuki:242
-	a, err_23 := jsonpkg.ParseString[searchFilesArgs](argsJSON)
+	a, err_24 := jsonpkg.ParseString[searchFilesArgs](argsJSON)
 //line local_tools.kuki:242
-	if err_23 != nil {
+	if err_24 != nil {
 //line local_tools.kuki:242
-		return "", fmt.Errorf("search_files: bad args: %v", err_23)
+		return "", fmt.Errorf("search_files: bad args: %v", err_24)
 	}
 //line local_tools.kuki:243
 	if a.Pattern == "" {
@@ -828,11 +833,11 @@ func localSearchFiles(lt LocalTools, argsJSON string) (string, error) {
 //line local_tools.kuki:259
 func localGrepFiles(lt LocalTools, argsJSON string) (string, error) {
 //line local_tools.kuki:260
-	a, err_24 := jsonpkg.ParseString[grepFilesArgs](argsJSON)
+	a, err_25 := jsonpkg.ParseString[grepFilesArgs](argsJSON)
 //line local_tools.kuki:260
-	if err_24 != nil {
+	if err_25 != nil {
 //line local_tools.kuki:260
-		return "", fmt.Errorf("grep_files: bad args: %v", err_24)
+		return "", fmt.Errorf("grep_files: bad args: %v", err_25)
 	}
 //line local_tools.kuki:261
 	if a.Pattern == "" {
@@ -851,9 +856,9 @@ func localGrepFiles(lt LocalTools, argsJSON string) (string, error) {
 //line local_tools.kuki:267
 	fullPath := filepath.Join(sandboxPath, searchPath)
 //line local_tools.kuki:268
-	rel, err_25 := filepath.Rel(sandboxPath, fullPath)
+	rel, err_26 := filepath.Rel(sandboxPath, fullPath)
 //line local_tools.kuki:268
-	if err_25 != nil {
+	if err_26 != nil {
 //line local_tools.kuki:268
 		return "", errors.New("grep_files: invalid path")
 	}
@@ -884,11 +889,11 @@ func localGrepFiles(lt LocalTools, argsJSON string) (string, error) {
 //line local_tools.kuki:282
 func localRunCommand(lt LocalTools, argsJSON string) (string, error) {
 //line local_tools.kuki:283
-	a, err_26 := jsonpkg.ParseString[runCommandArgs](argsJSON)
+	a, err_27 := jsonpkg.ParseString[runCommandArgs](argsJSON)
 //line local_tools.kuki:283
-	if err_26 != nil {
+	if err_27 != nil {
 //line local_tools.kuki:283
-		return "", fmt.Errorf("run_command: bad args: %v", err_26)
+		return "", fmt.Errorf("run_command: bad args: %v", err_27)
 	}
 //line local_tools.kuki:284
 	if a.Cmd == "" {
@@ -943,188 +948,140 @@ var version string = "dev"
 //line main.kuki:25
 func main() {
 //line main.kuki:26
-	args := os.Args[1:]
-//line main.kuki:29
-	flagModel := ""
-//line main.kuki:30
-	flagChat := false
-//line main.kuki:31
-	flagRaw := false
-//line main.kuki:32
-	flagSystem := ""
-//line main.kuki:33
-	flagSchema := false
-//line main.kuki:34
-	positional := make([]string, 0)
-//line main.kuki:36
-	i := 0
+	flagParser := cli.RestArg(cli.BoolFlag(cli.Short(cli.StringFlag(cli.BoolFlag(cli.Short(cli.BoolFlag(cli.Short(cli.StringFlag(cli.New("owui"), "model", "Model to use", ""), "m"), "chat", "Interactive chat mode", false), "c"), "raw", "Raw output (no streaming indicators)", false), "system", "System prompt override", ""), "S"), "schema", "Show tool schemas", false), "args", "Positional arguments / prompt")
 //line main.kuki:37
-	for i < len(args) {
-//line main.kuki:38
-		arg := args[i]
+	parsed := cli.ParseArgs(flagParser, os.Args)
 //line main.kuki:39
-		if (arg == "-m") || (arg == "--model") {
+	flagModel := cli.GetString(parsed, "model")
 //line main.kuki:40
-			i = (i + 1)
+	flagChat := cli.GetBool(parsed, "chat")
 //line main.kuki:41
-			if i < len(args) {
+	flagRaw := cli.GetBool(parsed, "raw")
 //line main.kuki:42
-				flagModel = args[i]
-			}
-		} else if strpkg.HasPrefix(arg, "--model=") {
+	flagSystem := cli.GetString(parsed, "system")
+//line main.kuki:43
+	flagSchema := cli.GetBool(parsed, "schema")
 //line main.kuki:44
-			flagModel = strpkg.TrimPrefix(arg, "--model=")
-		} else if (arg == "-c") || (arg == "--chat") {
-//line main.kuki:46
-			flagChat = true
-		} else if arg == "--raw" {
-//line main.kuki:48
-			flagRaw = true
-		} else if (arg == "-S") || (arg == "--system") {
-//line main.kuki:50
-			i = (i + 1)
-//line main.kuki:51
-			if i < len(args) {
-//line main.kuki:52
-				flagSystem = args[i]
-			}
-		} else if strpkg.HasPrefix(arg, "--system=") {
-//line main.kuki:54
-			flagSystem = strpkg.TrimPrefix(arg, "--system=")
-		} else if arg == "--schema" {
-//line main.kuki:56
-			flagSchema = true
-		} else if (arg == "-h") || (arg == "--help") {
-//line main.kuki:58
-			printUsage()
-//line main.kuki:59
-			return
-		} else {
-//line main.kuki:61
-			positional = append(positional, arg)
-		}
-//line main.kuki:62
-		i = (i + 1)
-	}
-//line main.kuki:65
+	positional := cli.GetRest(parsed, "args")
+//line main.kuki:47
 	if len(positional) > 0 {
-//line main.kuki:66
+//line main.kuki:48
 		cmd := positional[0]
-//line main.kuki:67
+//line main.kuki:49
 		if cmd == "models" {
-//line main.kuki:68
-//line main.kuki:68
-			err_27 := cmdListModels()
-//line main.kuki:68
-			if err_27 != nil {
-//line main.kuki:68
-				//line main.kuki:69
-				cli.Fatal(color.BrightRed(fmt.Sprintf("error: %v", err_27)))
+//line main.kuki:50
+//line main.kuki:50
+			err_28 := cmdListModels()
+//line main.kuki:50
+			if err_28 != nil {
+//line main.kuki:50
+				//line main.kuki:51
+				cli.Fatal(color.BrightRed(fmt.Sprintf("error: %v", err_28)))
 			}
+//line main.kuki:53
+			return
+		}
+//line main.kuki:54
+		if cmd == "tools" {
+//line main.kuki:55
+//line main.kuki:55
+			err_29 := cmdListTools(flagSchema)
+//line main.kuki:55
+			if err_29 != nil {
+//line main.kuki:55
+				//line main.kuki:56
+				cli.Fatal(color.BrightRed(fmt.Sprintf("error: %v", err_29)))
+			}
+//line main.kuki:58
+			return
+		}
+//line main.kuki:59
+		if cmd == "health" {
+//line main.kuki:60
+//line main.kuki:60
+			err_30 := cmdHealth()
+//line main.kuki:60
+			if err_30 != nil {
+//line main.kuki:60
+				//line main.kuki:61
+				cli.Fatal(color.BrightRed(fmt.Sprintf("error: %v", err_30)))
+			}
+//line main.kuki:63
+			return
+		}
+//line main.kuki:64
+		if cmd == "configure" {
+//line main.kuki:65
+//line main.kuki:65
+			err_31 := cmdConfigure()
+//line main.kuki:65
+			if err_31 != nil {
+//line main.kuki:65
+				//line main.kuki:66
+				cli.Fatal(color.BrightRed(fmt.Sprintf("error: %v", err_31)))
+			}
+//line main.kuki:68
+			return
+		}
+//line main.kuki:69
+		if cmd == "version" {
+//line main.kuki:70
+			fmt.Println(fmt.Sprintf("owui %v", version))
 //line main.kuki:71
 			return
 		}
-//line main.kuki:72
-		if cmd == "tools" {
-//line main.kuki:73
-//line main.kuki:73
-			err_28 := cmdListTools(flagSchema)
-//line main.kuki:73
-			if err_28 != nil {
-//line main.kuki:73
-				//line main.kuki:74
-				cli.Fatal(color.BrightRed(fmt.Sprintf("error: %v", err_28)))
-			}
-//line main.kuki:76
-			return
-		}
-//line main.kuki:77
-		if cmd == "health" {
-//line main.kuki:78
-//line main.kuki:78
-			err_29 := cmdHealth()
-//line main.kuki:78
-			if err_29 != nil {
-//line main.kuki:78
-				//line main.kuki:79
-				cli.Fatal(color.BrightRed(fmt.Sprintf("error: %v", err_29)))
-			}
-//line main.kuki:81
-			return
-		}
-//line main.kuki:82
-		if cmd == "configure" {
-//line main.kuki:83
-//line main.kuki:83
-			err_30 := cmdConfigure()
-//line main.kuki:83
-			if err_30 != nil {
-//line main.kuki:83
-				//line main.kuki:84
-				cli.Fatal(color.BrightRed(fmt.Sprintf("error: %v", err_30)))
-			}
-//line main.kuki:86
-			return
-		}
-//line main.kuki:87
-		if cmd == "version" {
-//line main.kuki:88
-			fmt.Println(fmt.Sprintf("owui %v", version))
-//line main.kuki:89
-			return
-		}
 	}
-//line main.kuki:92
-//line main.kuki:92
-	err_31 := cmdRun(positional, flagModel, flagChat, flagRaw, flagSystem)
-//line main.kuki:92
-	if err_31 != nil {
-//line main.kuki:92
-		//line main.kuki:93
-		cli.Fatal(color.BrightRed(fmt.Sprintf("error: %v", err_31)))
+//line main.kuki:74
+//line main.kuki:74
+	err_32 := cmdRun(positional, flagModel, flagChat, flagRaw, flagSystem)
+//line main.kuki:74
+	if err_32 != nil {
+//line main.kuki:74
+		//line main.kuki:75
+		cli.Fatal(color.BrightRed(fmt.Sprintf("error: %v", err_32)))
 	}
 }
 
-//line main.kuki:97
+//line main.kuki:80
 func cmdRun(positional []string, flagModel string, flagChat bool, flagRaw bool, flagSystem string) error {
-//line main.kuki:98
+//line main.kuki:81
 	cfg := loadConfig()
-//line main.kuki:99
+//line main.kuki:82
 	if flagModel != "" {
-//line main.kuki:100
+//line main.kuki:83
 		cfg.Model = flagModel
 	}
-//line main.kuki:101
-//line main.kuki:101
-	err_32 := validateConfig(cfg)
-//line main.kuki:101
-	if err_32 != nil {
-//line main.kuki:101
-		return err_32
-	}
-//line main.kuki:103
-	ctx := context.Background()
-//line main.kuki:105
-	bridge, err_33 := connectBridges(ctx, cfg.MCPServers)
-//line main.kuki:105
+//line main.kuki:84
+//line main.kuki:84
+	err_33 := validateConfig(cfg)
+//line main.kuki:84
 	if err_33 != nil {
-//line main.kuki:105
-		return fmt.Errorf("connecting to MCP servers: %v", err_33)
+//line main.kuki:84
+		return err_33
 	}
-//line main.kuki:106
-	defer closeBridges(bridge)
-//line main.kuki:108
-//line main.kuki:108
-	err_34 := registerLocalTools(bridge, cfg)
-//line main.kuki:108
+//line main.kuki:86
+	ctx := context.Background()
+//line main.kuki:88
+	bridge, err_34 := connectBridges(ctx, cfg.MCPServers)
+//line main.kuki:88
 	if err_34 != nil {
-//line main.kuki:108
-		//line main.kuki:109
-		cli.Error(color.Dim(fmt.Sprintf("warning: local tools unavailable: %v", err_34)))
+//line main.kuki:88
+		return fmt.Errorf("connecting to MCP servers: %v", err_34)
 	}
-//line main.kuki:111
+//line main.kuki:89
+	defer closeBridges(bridge)
+//line main.kuki:91
+//line main.kuki:91
+	err_35 := registerLocalTools(bridge, cfg)
+//line main.kuki:91
+	if err_35 != nil {
+//line main.kuki:91
+		//line main.kuki:92
+		cli.Error(color.Dim(fmt.Sprintf("warning: local tools unavailable: %v", err_35)))
+	}
+//line main.kuki:94
 	if isTTYErr() {
-//line main.kuki:112
+//line main.kuki:95
 		sandboxLabel := func() string {
 			if cfg.SandboxDir != "" {
 				return cfg.SandboxDir
@@ -1132,587 +1089,599 @@ func cmdRun(positional []string, flagModel string, flagChat bool, flagRaw bool, 
 				return "cwd"
 			}
 		}()
-//line main.kuki:113
+//line main.kuki:96
 		cli.Error(fmt.Sprintf("%v %v", color.Dim("tools:"), color.Dim(fmt.Sprintf("%v available | sandbox: %v", bridgeToolCount(bridge), sandboxLabel))))
 	}
-//line main.kuki:115
+//line main.kuki:98
 	a := &Agent{Bridge: bridge, Config: cfg, MaxRounds: cfg.MaxToolRounds}
-//line main.kuki:117
+//line main.kuki:100
 	if flagSystem != "" {
-//line main.kuki:118
+//line main.kuki:101
 		a.SystemPrompt = flagSystem
 	}
-//line main.kuki:121
-	agentsDoc, err_35 := files.ReadString("AGENTS.md")
-//line main.kuki:121
-	if err_35 != nil {
-//line main.kuki:121
+//line main.kuki:104
+	agentsDoc, err_36 := files.ReadString("AGENTS.md")
+//line main.kuki:104
+	if err_36 != nil {
+//line main.kuki:104
 		agentsDoc = ""
 	}
-//line main.kuki:122
+//line main.kuki:105
 	if agentsDoc != "" {
-//line main.kuki:123
+//line main.kuki:106
 		base := a.SystemPrompt
-//line main.kuki:124
+//line main.kuki:107
 		if base == "" {
-//line main.kuki:125
+//line main.kuki:108
 			base = defaultSystemPrompt
 		}
-//line main.kuki:126
+//line main.kuki:109
 		a.SystemPrompt = fmt.Sprintf("%v\n\n# Project Context (AGENTS.md)\n\n%v", base, agentsDoc)
-//line main.kuki:127
+//line main.kuki:110
 		if isTTYErr() {
-//line main.kuki:128
+//line main.kuki:111
 			cli.Error(color.Dim("Loaded AGENTS.md from current directory"))
 		}
 	}
-//line main.kuki:130
+//line main.kuki:113
 	prompt := gatherPrompt(positional)
-//line main.kuki:133
+//line main.kuki:116
 	if flagChat {
-//line main.kuki:134
+//line main.kuki:117
 		runChat(ctx, a, prompt)
-//line main.kuki:135
+//line main.kuki:118
 		return nil
 	}
-//line main.kuki:138
+//line main.kuki:121
 	if prompt == "" {
-//line main.kuki:139
+//line main.kuki:122
 		return errors.New("no prompt provided — use -c for interactive chat")
 	}
-//line main.kuki:141
+//line main.kuki:124
 	isTTY := isTTYOut()
-//line main.kuki:143
+//line main.kuki:126
 	if isTTY {
-//line main.kuki:144
+//line main.kuki:127
 		a.OnToolCall = func(name string, toolArgs string) {
-//line main.kuki:145
+//line main.kuki:128
 			cli.Error(fmt.Sprintf("%v %v", color.Yellow(fmt.Sprintf("-> %v", name)), color.Dim(truncateFmt(toolArgs, 80))))
 		}
-//line main.kuki:147
+//line main.kuki:130
 		a.OnToolResult = func(name string, result string) {
-//line main.kuki:148
+//line main.kuki:131
 			cli.Error(fmt.Sprintf("%v %v", color.Yellow(fmt.Sprintf("<- %v", name)), color.Dim(truncateFmt(result, 120))))
 		}
 	}
-//line main.kuki:150
+//line main.kuki:133
 	a.OnText = func(chunk string) {
-//line main.kuki:151
+//line main.kuki:134
 		if isTTY && !flagRaw {
-//line main.kuki:152
+//line main.kuki:135
 			fmt.Print(chunk)
 		}
 	}
-//line main.kuki:154
-	result, err_36 := runAgent(ctx, a, prompt, []chat.Message{})
-//line main.kuki:154
-	if err_36 != nil {
-//line main.kuki:154
-		return err_36
+//line main.kuki:137
+	result, err_37 := runAgent(ctx, a, prompt, []chat.Message{})
+//line main.kuki:137
+	if err_37 != nil {
+//line main.kuki:137
+		return err_37
 	}
-//line main.kuki:156
+//line main.kuki:139
 	if isTTY && !flagRaw {
-//line main.kuki:157
+//line main.kuki:140
 		fmt.Println("")
 	} else {
-//line main.kuki:159
+//line main.kuki:142
 		fmt.Print(result.Content)
 	}
-//line main.kuki:161
+//line main.kuki:144
 	if isTTY {
-//line main.kuki:162
+//line main.kuki:145
 		cli.Error(color.Dim(fmt.Sprintf("(%v tool rounds)", result.Rounds)))
 	}
-//line main.kuki:164
+//line main.kuki:147
 	return nil
 }
 
-//line main.kuki:168
+//line main.kuki:151
 type ModelEntry struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
-//line main.kuki:172
+//line main.kuki:155
 type ModelsResponse struct {
 	Data []ModelEntry `json:"data"`
 }
 
-//line main.kuki:175
+//line main.kuki:158
 func cmdListModels() error {
-//line main.kuki:176
+//line main.kuki:159
 	cfg := loadConfig()
-//line main.kuki:177
+//line main.kuki:160
 	if cfg.WebUIAPIKey == "" {
-//line main.kuki:178
+//line main.kuki:161
 		return errors.New("Open WebUI API key required")
 	}
-//line main.kuki:180
+//line main.kuki:163
 	url := fmt.Sprintf("%v/api/models", strpkg.TrimRight(cfg.WebUIURL, "/"))
-//line main.kuki:181
+//line main.kuki:164
 	// pipe step 1: fetch.Do(...)
-//line main.kuki:181
-	resp, err_38 := fetch.Do(fetch.BearerAuth(fetch.New(url), cfg.WebUIAPIKey))
-//line main.kuki:181
-	if err_38 != nil {
-//line main.kuki:181
-		return err_38
+//line main.kuki:164
+	resp, err_39 := fetch.Do(fetch.BearerAuth(fetch.New(url), cfg.WebUIAPIKey))
+//line main.kuki:164
+	if err_39 != nil {
+//line main.kuki:164
+		return err_39
 	}
-//line main.kuki:183
+//line main.kuki:166
 	defer resp.Body.Close()
-//line main.kuki:185
+//line main.kuki:168
 	if resp.StatusCode != 200 {
-//line main.kuki:186
-		body, err_39 := fetch.Bytes(resp)
-//line main.kuki:186
-		if err_39 != nil {
-//line main.kuki:186
+//line main.kuki:169
+		body, err_40 := fetch.Bytes(resp)
+//line main.kuki:169
+		if err_40 != nil {
+//line main.kuki:169
 			return fmt.Errorf("HTTP %v", resp.StatusCode)
 		}
-//line main.kuki:187
+//line main.kuki:170
 		return fmt.Errorf("HTTP %v: %v", resp.StatusCode, string(body))
 	}
-//line main.kuki:189
+//line main.kuki:172
 	models := ModelsResponse{}
-//line main.kuki:190
-//line main.kuki:190
-	err_40 := jsonpkg.ReadInto(resp.Body, &models)
-//line main.kuki:190
-	if err_40 != nil {
-//line main.kuki:190
-		return err_40
+//line main.kuki:173
+//line main.kuki:173
+	err_41 := jsonpkg.ReadInto(resp.Body, &models)
+//line main.kuki:173
+	if err_41 != nil {
+//line main.kuki:173
+		return err_41
 	}
-//line main.kuki:192
+//line main.kuki:175
 	fmt.Println(color.Bold(color.Cyan("Available models:")))
-//line main.kuki:193
+//line main.kuki:176
 	for _, m := range models.Data {
-//line main.kuki:194
+//line main.kuki:177
 		name := m.Name
-//line main.kuki:195
+//line main.kuki:178
 		if name == "" {
-//line main.kuki:196
+//line main.kuki:179
 			name = m.ID
 		}
-//line main.kuki:197
+//line main.kuki:180
 		fmt.Println(fmt.Sprintf("  %v %v", name, color.Dim(fmt.Sprintf("(%v)", m.ID))))
 	}
-//line main.kuki:199
+//line main.kuki:182
 	return nil
 }
 
-//line main.kuki:201
+//line main.kuki:184
 func cmdListTools(showSchema bool) error {
-//line main.kuki:202
+//line main.kuki:185
 	cfg := loadConfig()
-//line main.kuki:203
+//line main.kuki:186
 	ctx := context.Background()
-//line main.kuki:205
-	bridge, err_41 := connectBridges(ctx, cfg.MCPServers)
-//line main.kuki:205
-	if err_41 != nil {
-//line main.kuki:205
-		return err_41
-	}
-//line main.kuki:206
-	defer closeBridges(bridge)
-//line main.kuki:208
-//line main.kuki:208
-	err_42 := registerLocalTools(bridge, cfg)
-//line main.kuki:208
+//line main.kuki:188
+	bridge, err_42 := connectBridges(ctx, cfg.MCPServers)
+//line main.kuki:188
 	if err_42 != nil {
-//line main.kuki:208
+//line main.kuki:188
 		return err_42
 	}
-//line main.kuki:210
+//line main.kuki:189
+	defer closeBridges(bridge)
+//line main.kuki:191
+//line main.kuki:191
+	err_43 := registerLocalTools(bridge, cfg)
+//line main.kuki:191
+	if err_43 != nil {
+//line main.kuki:191
+		return err_43
+	}
+//line main.kuki:193
 	fmt.Println(color.Bold(color.Yellow("Available tools:")))
-//line main.kuki:211
+//line main.kuki:194
 	for _, t := range bridgeTools(bridge) {
-//line main.kuki:212
+//line main.kuki:195
 		fmt.Println(fmt.Sprintf("  %v", t.Function.Name))
-//line main.kuki:213
+//line main.kuki:196
 		if showSchema {
-//line main.kuki:214
-			b, _ := jsonpkg.PrettyBytes(t.Function.Parameters)
-//line main.kuki:215
+//line main.kuki:197
+			b, err_44 := jsonpkg.PrettyBytes(t.Function.Parameters)
+//line main.kuki:197
+			if err_44 != nil {
+//line main.kuki:197
+				//line main.kuki:198
+				b = []byte{}
+			}
+//line main.kuki:199
 			fmt.Println(fmt.Sprintf("    %v", string(b)))
 		}
 	}
-//line main.kuki:217
+//line main.kuki:201
 	return nil
 }
 
-//line main.kuki:219
+//line main.kuki:203
 func cmdHealth() error {
-//line main.kuki:220
+//line main.kuki:204
 	cfg := loadConfig()
-//line main.kuki:221
+//line main.kuki:205
 	ctx := context.Background()
-//line main.kuki:224
+//line main.kuki:208
 	fmt.Print(fmt.Sprintf("Open WebUI  (%v)  ", cfg.WebUIURL))
-//line main.kuki:225
+//line main.kuki:209
 	if cfg.WebUIAPIKey != "" {
-//line main.kuki:226
+//line main.kuki:210
 		url := fmt.Sprintf("%v/api/models", strpkg.TrimRight(cfg.WebUIURL, "/"))
-//line main.kuki:227
+//line main.kuki:211
 		resp, err := fetch.Do(fetch.BearerAuth(fetch.New(url), cfg.WebUIAPIKey))
-//line main.kuki:229
+//line main.kuki:213
 		if err != nil {
-//line main.kuki:230
+//line main.kuki:214
 			fmt.Println(fmt.Sprintf("%v %v", color.BrightRed("x"), err))
 		} else {
-//line main.kuki:232
+//line main.kuki:216
 			resp.Body.Close()
-//line main.kuki:233
+//line main.kuki:217
 			if resp.StatusCode == 200 {
-//line main.kuki:234
+//line main.kuki:218
 				fmt.Println(color.Green("ok"))
 			} else {
-//line main.kuki:236
+//line main.kuki:220
 				fmt.Println(fmt.Sprintf("%v HTTP %v", color.BrightRed("x"), resp.StatusCode))
 			}
 		}
 	} else {
-//line main.kuki:238
+//line main.kuki:222
 		fmt.Println(fmt.Sprintf("%v no API key", color.BrightRed("x")))
 	}
-//line main.kuki:241
+//line main.kuki:225
 	for name, mcfg := range cfg.MCPServers {
-//line main.kuki:242
+//line main.kuki:226
 		fmt.Print(fmt.Sprintf("%v MCP (%v)  ", name, mcfg.URL))
-//line main.kuki:243
+//line main.kuki:227
 		m := make(map[string]MCPServerConfig)
-//line main.kuki:244
+//line main.kuki:228
 		m[name] = mcfg
-//line main.kuki:245
+//line main.kuki:229
 		bridge, err := connectBridges(ctx, m)
-//line main.kuki:246
+//line main.kuki:230
 		if err != nil {
-//line main.kuki:247
+//line main.kuki:231
 			fmt.Println(fmt.Sprintf("%v %v", color.BrightRed("x"), err))
 		} else {
-//line main.kuki:249
+//line main.kuki:233
 			fmt.Println(fmt.Sprintf("%v %v tools", color.Green("ok"), bridgeToolCount(bridge)))
-//line main.kuki:250
+//line main.kuki:234
 			closeBridges(bridge)
 		}
 	}
-//line main.kuki:252
+//line main.kuki:236
 	return nil
 }
 
-//line main.kuki:254
+//line main.kuki:238
 func cmdConfigure() error {
-//line main.kuki:255
+//line main.kuki:239
 	cfg := loadConfig()
+//line main.kuki:241
+	v, err_45 := input.ReadLine(fmt.Sprintf("Open WebUI URL [%v]: ", cfg.WebUIURL))
+//line main.kuki:241
+	if err_45 != nil {
+//line main.kuki:241
+		v = ""
+	}
+//line main.kuki:242
+	if v != "" {
+//line main.kuki:243
+		cfg.WebUIURL = v
+	}
+//line main.kuki:245
+	var err_46 error
+	v, err_46 = input.ReadLine(fmt.Sprintf("Open WebUI API Key [%v]: ", maskKey(cfg.WebUIAPIKey)))
+//line main.kuki:245
+	if err_46 != nil {
+//line main.kuki:245
+		v = ""
+	}
+//line main.kuki:246
+	if v != "" {
+//line main.kuki:247
+		cfg.WebUIAPIKey = v
+	}
+//line main.kuki:249
+	var err_47 error
+	v, err_47 = input.ReadLine(fmt.Sprintf("Model [%v]: ", cfg.Model))
+//line main.kuki:249
+	if err_47 != nil {
+//line main.kuki:249
+		v = ""
+	}
+//line main.kuki:250
+	if v != "" {
+//line main.kuki:251
+		cfg.Model = v
+	}
+//line main.kuki:253
+	var err_48 error
+	v, err_48 = input.ReadLine(fmt.Sprintf("terminal MCP URL [%v]: ", cfg.TerminalMCPURL))
+//line main.kuki:253
+	if err_48 != nil {
+//line main.kuki:253
+		v = ""
+	}
+//line main.kuki:254
+	if v != "" {
+//line main.kuki:255
+		cfg.TerminalMCPURL = v
+	}
 //line main.kuki:257
-	v, err_43 := input.ReadLine(fmt.Sprintf("Open WebUI URL [%v]: ", cfg.WebUIURL))
+	var err_49 error
+	v, err_49 = input.ReadLine(fmt.Sprintf("terminal MCP API Key [%v]: ", maskKey(cfg.TerminalMCPAPIKey)))
 //line main.kuki:257
-	if err_43 != nil {
+	if err_49 != nil {
 //line main.kuki:257
 		v = ""
 	}
 //line main.kuki:258
 	if v != "" {
 //line main.kuki:259
-		cfg.WebUIURL = v
+		cfg.TerminalMCPAPIKey = v
 	}
 //line main.kuki:261
-	var err_44 error
-	v, err_44 = input.ReadLine(fmt.Sprintf("Open WebUI API Key [%v]: ", maskKey(cfg.WebUIAPIKey)))
+	var err_50 error
+	v, err_50 = input.ReadLine(fmt.Sprintf("Sandbox directory [%v]: ", cfg.SandboxDir))
 //line main.kuki:261
-	if err_44 != nil {
+	if err_50 != nil {
 //line main.kuki:261
 		v = ""
 	}
 //line main.kuki:262
 	if v != "" {
 //line main.kuki:263
-		cfg.WebUIAPIKey = v
-	}
-//line main.kuki:265
-	var err_45 error
-	v, err_45 = input.ReadLine(fmt.Sprintf("Model [%v]: ", cfg.Model))
-//line main.kuki:265
-	if err_45 != nil {
-//line main.kuki:265
-		v = ""
-	}
-//line main.kuki:266
-	if v != "" {
-//line main.kuki:267
-		cfg.Model = v
-	}
-//line main.kuki:269
-	var err_46 error
-	v, err_46 = input.ReadLine(fmt.Sprintf("terminal MCP URL [%v]: ", cfg.TerminalMCPURL))
-//line main.kuki:269
-	if err_46 != nil {
-//line main.kuki:269
-		v = ""
-	}
-//line main.kuki:270
-	if v != "" {
-//line main.kuki:271
-		cfg.TerminalMCPURL = v
-	}
-//line main.kuki:273
-	var err_47 error
-	v, err_47 = input.ReadLine(fmt.Sprintf("terminal MCP API Key [%v]: ", maskKey(cfg.TerminalMCPAPIKey)))
-//line main.kuki:273
-	if err_47 != nil {
-//line main.kuki:273
-		v = ""
-	}
-//line main.kuki:274
-	if v != "" {
-//line main.kuki:275
-		cfg.TerminalMCPAPIKey = v
-	}
-//line main.kuki:277
-	var err_48 error
-	v, err_48 = input.ReadLine(fmt.Sprintf("Sandbox directory [%v]: ", cfg.SandboxDir))
-//line main.kuki:277
-	if err_48 != nil {
-//line main.kuki:277
-		v = ""
-	}
-//line main.kuki:278
-	if v != "" {
-//line main.kuki:279
 		cfg.SandboxDir = v
 	}
-//line main.kuki:281
-//line main.kuki:281
-	err_49 := saveConfig(cfg)
-//line main.kuki:281
-	if err_49 != nil {
-//line main.kuki:281
-		return err_49
+//line main.kuki:265
+//line main.kuki:265
+	err_51 := saveConfig(cfg)
+//line main.kuki:265
+	if err_51 != nil {
+//line main.kuki:265
+		return err_51
 	}
-//line main.kuki:282
+//line main.kuki:266
 	fmt.Println(color.Green(fmt.Sprintf("Saved to %v", defaultConfigPath())))
-//line main.kuki:283
+//line main.kuki:267
 	return nil
 }
 
-//line main.kuki:287
+//line main.kuki:271
 func runChat(ctx context.Context, a *Agent, initialPrompt string) {
-//line main.kuki:288
+//line main.kuki:272
 	history := []chat.Message{}
-//line main.kuki:289
+//line main.kuki:273
 	prompt := initialPrompt
-//line main.kuki:291
+//line main.kuki:275
 	fmt.Println(color.Dim(fmt.Sprintf("owui chat — model: %v — type 'exit' to quit", a.Config.Model)))
-//line main.kuki:292
+//line main.kuki:276
 	fmt.Println("")
-//line main.kuki:294
+//line main.kuki:278
 	for {
-//line main.kuki:295
+//line main.kuki:279
 		if prompt == "" {
-//line main.kuki:296
-			var err_50 error
-			prompt, err_50 = input.ReadLine(color.Bold(color.Cyan("you> ")))
-//line main.kuki:296
-			if err_50 != nil {
-//line main.kuki:296
+//line main.kuki:280
+			var err_52 error
+			prompt, err_52 = input.ReadLine(color.Bold(color.Cyan("you> ")))
+//line main.kuki:280
+			if err_52 != nil {
+//line main.kuki:280
 				break
 			}
-//line main.kuki:297
+//line main.kuki:281
 			if (prompt == "exit") || (prompt == "quit") {
-//line main.kuki:298
+//line main.kuki:282
 				break
 			}
-//line main.kuki:299
+//line main.kuki:283
 			if prompt == "" {
-//line main.kuki:300
+//line main.kuki:284
 				continue
 			}
 		}
-//line main.kuki:302
+//line main.kuki:286
 		a.OnToolCall = func(name string, toolArgs string) {
-//line main.kuki:303
+//line main.kuki:287
 			cli.Error(fmt.Sprintf("  %v %v", color.Yellow(fmt.Sprintf("-> %v", name)), color.Dim(truncateFmt(toolArgs, 60))))
 		}
-//line main.kuki:305
+//line main.kuki:289
 		a.OnToolResult = func(name string, result string) {
-//line main.kuki:306
+//line main.kuki:290
 			cli.Error(fmt.Sprintf("  %v %v", color.Yellow(fmt.Sprintf("<- %v", name)), color.Dim(truncateFmt(result, 80))))
 		}
-//line main.kuki:310
+//line main.kuki:294
 		firstChunk := true
-//line main.kuki:311
+//line main.kuki:295
 		a.OnText = func(chunk string) {
-//line main.kuki:312
+//line main.kuki:296
 			if firstChunk {
-//line main.kuki:313
+//line main.kuki:297
 				fmt.Print(fmt.Sprintf("\n%v  ", color.Dim(a.Config.Model)))
-//line main.kuki:314
+//line main.kuki:298
 				firstChunk = false
 			}
-//line main.kuki:315
+//line main.kuki:299
 			fmt.Print(chunk)
 		}
-//line main.kuki:317
-		result, err_51 := runAgent(ctx, a, prompt, history)
-//line main.kuki:317
-		if err_51 != nil {
-//line main.kuki:317
-			//line main.kuki:318
-			fmt.Println(color.BrightRed(fmt.Sprintf("error: %v", err_51)))
-			//line main.kuki:319
+//line main.kuki:301
+		result, err_53 := runAgent(ctx, a, prompt, history)
+//line main.kuki:301
+		if err_53 != nil {
+//line main.kuki:301
+			//line main.kuki:302
+			fmt.Println(color.BrightRed(fmt.Sprintf("error: %v", err_53)))
+			//line main.kuki:303
 			fmt.Println("")
-			//line main.kuki:320
+			//line main.kuki:304
 			prompt = ""
-			//line main.kuki:321
+			//line main.kuki:305
 			continue
 		}
-//line main.kuki:323
+//line main.kuki:307
 		if firstChunk && (result.Content != "") {
-//line main.kuki:325
+//line main.kuki:309
 			fmt.Println(fmt.Sprintf("\n%v  %v", color.Dim(a.Config.Model), result.Content))
 		} else {
-//line main.kuki:327
+//line main.kuki:311
 			fmt.Println("")
 		}
-//line main.kuki:328
+//line main.kuki:312
 		if result.Rounds > 1 {
-//line main.kuki:329
+//line main.kuki:313
 			fmt.Println(color.Dim(fmt.Sprintf("  (%v rounds)", result.Rounds)))
 		}
-//line main.kuki:330
+//line main.kuki:314
 		fmt.Println("")
-//line main.kuki:332
+//line main.kuki:316
 		history = result.Messages
-//line main.kuki:333
+//line main.kuki:317
 		prompt = ""
 	}
 }
 
-//line main.kuki:337
+//line main.kuki:321
 func gatherPrompt(args []string) string {
-//line main.kuki:338
+//line main.kuki:322
 	prompt := ""
-//line main.kuki:341
+//line main.kuki:325
 	if !isTerminal(os.Stdin) && (len(args) == 0) {
-//line main.kuki:342
-		data, _ := io.ReadAll(os.Stdin)
-//line main.kuki:343
+//line main.kuki:326
+		data, err_54 := io.ReadAll(os.Stdin)
+//line main.kuki:326
+		if err_54 != nil {
+//line main.kuki:326
+			//line main.kuki:327
+			data = []byte{}
+		}
+//line main.kuki:328
 		prompt = strpkg.TrimSpace(string(data))
 	}
-//line main.kuki:345
+//line main.kuki:330
 	if len(args) > 0 {
-//line main.kuki:346
+//line main.kuki:331
 		argText := strpkg.Join(args, " ")
-//line main.kuki:347
+//line main.kuki:332
 		if prompt != "" {
-//line main.kuki:348
+//line main.kuki:333
 			prompt = fmt.Sprintf("%v\n\n%v", argText, prompt)
 		} else {
-//line main.kuki:350
+//line main.kuki:335
 			prompt = argText
 		}
 	}
-//line main.kuki:352
+//line main.kuki:337
 	return prompt
 }
 
-//line main.kuki:354
+//line main.kuki:339
 func isTerminal(f *os.File) bool {
-//line main.kuki:355
+//line main.kuki:340
 	info, err := f.Stat()
-//line main.kuki:356
+//line main.kuki:341
 	if err != nil {
-//line main.kuki:357
+//line main.kuki:342
 		return false
 	}
-//line main.kuki:358
+//line main.kuki:343
 	return ((info.Mode() & 0x200000) != 0)
 }
 
-//line main.kuki:360
+//line main.kuki:345
 func isTTYOut() bool {
-//line main.kuki:361
+//line main.kuki:346
 	return isTerminal(os.Stdout)
 }
 
-//line main.kuki:363
+//line main.kuki:348
 func isTTYErr() bool {
-//line main.kuki:364
+//line main.kuki:349
 	return isTerminal(os.Stderr)
 }
 
-//line main.kuki:366
+//line main.kuki:351
 func maskKey(k string) string {
-//line main.kuki:367
+//line main.kuki:352
 	if len(k) < 8 {
-//line main.kuki:368
+//line main.kuki:353
 		return "--------"
 	}
-//line main.kuki:369
+//line main.kuki:354
 	return fmt.Sprintf("%v...%v", k[:4], k[(len(k)-4):])
 }
 
-//line main.kuki:371
+//line main.kuki:356
 func truncateFmt(s string, n int) string {
-//line main.kuki:372
+//line main.kuki:357
 	s = strpkg.ReplaceAll(s, "\n", " ")
-//line main.kuki:373
+//line main.kuki:358
 	if len(s) <= n {
-//line main.kuki:374
+//line main.kuki:359
 		return s
 	}
-//line main.kuki:375
+//line main.kuki:360
 	return (s[:(n-3)] + "...")
 }
 
-//line main.kuki:377
+//line main.kuki:362
 func printUsage() {
-//line main.kuki:378
+//line main.kuki:363
 	fmt.Println("owui — CLI agent: Open WebUI models + Open Terminal via MCP")
+//line main.kuki:364
+	fmt.Println("")
+//line main.kuki:365
+	fmt.Println("Usage:")
+//line main.kuki:366
+	fmt.Println("  owui [flags] [prompt]     Agent mode (one-shot or piped)")
+//line main.kuki:367
+	fmt.Println("  owui -c [prompt]          Interactive chat")
+//line main.kuki:368
+	fmt.Println("  owui models               List available models")
+//line main.kuki:369
+	fmt.Println("  owui tools                List MCP tools")
+//line main.kuki:370
+	fmt.Println("  owui health               Check connectivity")
+//line main.kuki:371
+	fmt.Println("  owui configure            Save configuration")
+//line main.kuki:372
+	fmt.Println("  owui version              Print version")
+//line main.kuki:373
+	fmt.Println("")
+//line main.kuki:374
+	fmt.Println("Flags:")
+//line main.kuki:375
+	fmt.Println("  -m, --model <model>       Override model")
+//line main.kuki:376
+	fmt.Println("  -c, --chat                Interactive chat mode")
+//line main.kuki:377
+	fmt.Println("  -S, --system <prompt>     Override system prompt")
+//line main.kuki:378
+	fmt.Println("  --raw                     Raw output (no formatting)")
 //line main.kuki:379
 	fmt.Println("")
 //line main.kuki:380
-	fmt.Println("Usage:")
-//line main.kuki:381
-	fmt.Println("  owui [flags] [prompt]     Agent mode (one-shot or piped)")
-//line main.kuki:382
-	fmt.Println("  owui -c [prompt]          Interactive chat")
-//line main.kuki:383
-	fmt.Println("  owui models               List available models")
-//line main.kuki:384
-	fmt.Println("  owui tools                List MCP tools")
-//line main.kuki:385
-	fmt.Println("  owui health               Check connectivity")
-//line main.kuki:386
-	fmt.Println("  owui configure            Save configuration")
-//line main.kuki:387
-	fmt.Println("  owui version              Print version")
-//line main.kuki:388
-	fmt.Println("")
-//line main.kuki:389
-	fmt.Println("Flags:")
-//line main.kuki:390
-	fmt.Println("  -m, --model <model>       Override model")
-//line main.kuki:391
-	fmt.Println("  -c, --chat                Interactive chat mode")
-//line main.kuki:392
-	fmt.Println("  -S, --system <prompt>     Override system prompt")
-//line main.kuki:393
-	fmt.Println("  --raw                     Raw output (no formatting)")
-//line main.kuki:394
-	fmt.Println("")
-//line main.kuki:395
 	fmt.Println("Environment:")
-//line main.kuki:396
+//line main.kuki:381
 	fmt.Println("  OWUI_WEBUI_URL            Open WebUI URL (default: http://localhost:3000)")
-//line main.kuki:397
+//line main.kuki:382
 	fmt.Println("  OWUI_WEBUI_API_KEY        Open WebUI API key (required)")
-//line main.kuki:398
+//line main.kuki:383
 	fmt.Println("  OWUI_MODEL                Model name (default: llama3.1)")
-//line main.kuki:399
+//line main.kuki:384
 	fmt.Println("  OWUI_TERMINAL_MCP_URL     terminal MCP URL (default: http://127.0.0.1:9000/mcp)")
-//line main.kuki:400
+//line main.kuki:385
 	fmt.Println("  OWUI_TERMINAL_MCP_API_KEY terminal MCP API key (optional, for authenticated servers)")
-//line main.kuki:401
+//line main.kuki:386
 	fmt.Println("  OWUI_SANDBOX_DIR          sandbox root for built-in tools (default: cwd)")
 }
