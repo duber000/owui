@@ -9,6 +9,7 @@ import "stdlib/json" as jsonpkg
 import "stdlib/llm/chat"
 import "stdlib/mcp"
 import "stdlib/regex"
+import "stdlib/slice"
 
 type ToolRoute
     ServerName string
@@ -88,10 +89,8 @@ func bridgeTools(b reference Bridge) list of chat.Tool
     return tools
 
 func bridgeToolCount(b reference Bridge) int
-    count := len(b.LocalToolNames)
-    for _, s in b.Servers
-        count = count + len(s.Tools)
-    return count
+    serverCounts := b.Servers |> slice.Map((s reference BridgeServer) => len(s.Tools))
+    return len(b.LocalToolNames) + slice.Sum(serverCounts)
 
 func bridgeToolNames(b reference Bridge) list of string
     names := make(list of string, 0, len(b.LocalToolNames) + len(b.ToolMap))
