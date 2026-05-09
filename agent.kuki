@@ -9,7 +9,7 @@ import "stdlib/json" as jsonpkg
 import "stdlib/llm/chat"
 import "stdlib/string" as strpkg
 
-constant defaultSystemPrompt string = "You are a helpful assistant with access to a sandboxed Linux environment via tool calls. You can execute commands, read/write files, search, and manage the filesystem. Use these tools to help the user accomplish their goals. Be concise in your explanations but thorough in your tool usage."
+const defaultSystemPrompt string = "You are a helpful assistant with access to a sandboxed Linux environment via tool calls. You can execute commands, read/write files, search, and manage the filesystem. Use these tools to help the user accomplish their goals. Be concise in your explanations but thorough in your tool usage."
 
 type Agent
     Bridge reference Bridge
@@ -25,7 +25,7 @@ type RunResult
     Messages list of chat.Message
     Rounds int
 
-func runAgent(ctx context.Context, a reference Agent, userPrompt string, history list of chat.Message) (reference RunResult, error)
+func runAgent(ctx: context.Context, a: reference Agent, userPrompt: string, history: list of chat.Message) (reference RunResult, error)
     maxRounds := a.MaxRounds
     if maxRounds equals 0
         maxRounds = 15
@@ -76,7 +76,10 @@ func runAgent(ctx context.Context, a reference Agent, userPrompt string, history
             toolCalls := chat.GetToolCalls(comp)
 
             # Add assistant message with tool calls to history
-            messages = append(messages, chat.Message{Role: "assistant", Content: content, ToolCalls: toolCalls})
+            messages = append(
+                messages,
+                chat.Message{Role: "assistant", Content: content, ToolCalls: toolCalls},
+            )
 
             for _, tc in toolCalls
                 if a.OnToolCall isnt empty

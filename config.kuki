@@ -79,13 +79,13 @@ func loadConfig() Config
 
     return cfg
 
-func saveConfig(cfg Config) error
+func saveConfig(cfg: Config) error
     path := defaultConfigPath()
     files.MkDirAll(files.Dirname(path)) onerr return
     files.Write(cfg, path) onerr return
     return empty
 
-func validateConfig(cfg Config) error
+func validateConfig(cfg: Config) error
     if cfg.WebUIAPIKey equals ""
         return error "Open WebUI API key required: set OWUI_WEBUI_API_KEY or run `owui configure`"
     return empty

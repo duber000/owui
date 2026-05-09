@@ -36,9 +36,9 @@ func main()
 
     parsed := cli.ParseArgs(flagParser, os.Args)
 
-    flagModel  := cli.GetString(parsed, "model")
-    flagChat   := cli.GetBool(parsed, "chat")
-    flagRaw    := cli.GetBool(parsed, "raw")
+    flagModel := cli.GetString(parsed, "model")
+    flagChat := cli.GetBool(parsed, "chat")
+    flagRaw := cli.GetBool(parsed, "raw")
     flagSystem := cli.GetString(parsed, "system")
     flagSchema := cli.GetBool(parsed, "schema")
     positional := cli.GetRest(parsed, "args")
@@ -74,10 +74,9 @@ func main()
     cmdRun(positional, flagModel, flagChat, flagRaw, flagSystem) onerr
         cli.Fatal(color.BrightRed("error: {error}"))
 
-
 # ---- Agent mode ----
 
-func cmdRun(positional list of string, flagModel string, flagChat bool, flagRaw bool, flagSystem string) error
+func cmdRun(positional: list of string, flagModel: string, flagChat: bool, flagRaw: bool, flagSystem: string) error
     cfg := loadConfig()
     if flagModel isnt ""
         cfg.Model = flagModel
@@ -93,7 +92,9 @@ func cmdRun(positional list of string, flagModel string, flagChat bool, flagRaw 
 
     if isTTYErr()
         sandboxLabel := if cfg.SandboxDir isnt "" then cfg.SandboxDir else "cwd"
-        cli.Error("{color.Dim("tools:")} {color.Dim("{bridgeToolCount(bridge)} available | sandbox: {sandboxLabel}")}")
+        cli.Error(
+            "{color.Dim("tools:")} {color.Dim("{bridgeToolCount(bridge)} available | sandbox: {sandboxLabel}")}",
+        )
 
     a := reference of Agent{Bridge: bridge, Config: cfg, MaxRounds: cfg.MaxToolRounds}
 
@@ -124,13 +125,13 @@ func cmdRun(positional list of string, flagModel string, flagChat bool, flagRaw 
     isTTY := isTTYOut()
 
     if isTTY
-        a.OnToolCall = func(name string, toolArgs string)
+        a.OnToolCall = func(name: string, toolArgs: string)
             cli.Error("{color.Yellow("-> {name}")} {color.Dim(truncateFmt(toolArgs, 80))}")
 
-        a.OnToolResult = func(name string, result string)
+        a.OnToolResult = func(name: string, result: string)
             cli.Error("{color.Yellow("<- {name}")} {color.Dim(truncateFmt(result, 120))}")
 
-    a.OnText = func(chunk string)
+    a.OnText = func(chunk: string)
         if isTTY and not flagRaw
             fmt.Print(chunk)
 
@@ -181,7 +182,7 @@ func cmdListModels() error
 
     return empty
 
-func cmdListTools(showSchema bool) error
+func cmdListTools(showSchema: bool) error
     cfg := loadConfig()
     ctx := context.Background()
 
@@ -196,6 +197,7 @@ func cmdListTools(showSchema bool) error
         if showSchema
             b := jsonpkg.PrettyBytes(t.Function.Parameters) onerr
                 fallback empty list of byte
+
             print("    {b as string}")
 
     return empty
@@ -267,7 +269,7 @@ func cmdConfigure() error
 
 # ---- Interactive chat (simple readline loop) ----
 
-func runChat(ctx context.Context, a reference Agent, initialPrompt string)
+func runChat(ctx: context.Context, a: reference Agent, initialPrompt: string)
     history := empty list of chat.Message
     prompt := initialPrompt
 
@@ -282,16 +284,16 @@ func runChat(ctx context.Context, a reference Agent, initialPrompt string)
             if prompt equals ""
                 continue
 
-        a.OnToolCall = func(name string, toolArgs string)
+        a.OnToolCall = func(name: string, toolArgs: string)
             cli.Error("  {color.Yellow("-> {name}")} {color.Dim(truncateFmt(toolArgs, 60))}")
 
-        a.OnToolResult = func(name string, result string)
+        a.OnToolResult = func(name: string, result: string)
             cli.Error("  {color.Yellow("<- {name}")} {color.Dim(truncateFmt(result, 80))}")
 
         # Stream response chunks; print the model prefix lazily on the first chunk
         # so tool-call output (stderr) appears before the response line starts.
         firstChunk := true
-        a.OnText = func(chunk string)
+        a.OnText = func(chunk: string)
             if firstChunk
                 fmt.Print("\n{color.Dim(a.Config.Model)}  ")
                 firstChunk = false
@@ -317,13 +319,14 @@ func runChat(ctx context.Context, a reference Agent, initialPrompt string)
 
 # ---- Helpers ----
 
-func gatherPrompt(args list of string) string
+func gatherPrompt(args: list of string) string
     prompt := ""
 
     # Simple heuristic: assume not a terminal if TERM is empty and no args
     if not isTerminal(os.Stdin) and len(args) equals 0
         data := io.ReadAll(os.Stdin) onerr
             fallback empty list of byte
+
         prompt = strpkg.TrimSpace(data as string)
 
     if len(args) > 0
@@ -335,7 +338,7 @@ func gatherPrompt(args list of string) string
 
     return prompt
 
-func isTerminal(f reference os.File) bool
+func isTerminal(f: reference os.File) bool
     info, err := f.Stat()
     if err isnt empty
         return false
@@ -347,12 +350,12 @@ func isTTYOut() bool
 func isTTYErr() bool
     return isTerminal(os.Stderr)
 
-func maskKey(k string) string
+func maskKey(k: string) string
     if len(k) < 8
         return "--------"
     return "{k[:4]}...{k[len(k) - 4:]}"
 
-func truncateFmt(s string, n int) string
+func truncateFmt(s: string, n: int) string
     s = strpkg.ReplaceAll(s, "\n", " ")
     if len(s) <= n
         return s
