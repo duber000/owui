@@ -238,29 +238,28 @@ func cmdHealth() error
 func cmdConfigure() error
     cfg := loadConfig()
 
-    v := input.ReadLine("Open WebUI URL [{cfg.WebUIURL}]: ") onerr ""
-    if v isnt ""
-        cfg.WebUIURL = v
+    f := input.NewForm()
+    f.Text("webuiURL", "Open WebUI URL [{cfg.WebUIURL}]: ")
+    f.Default("webuiURL", cfg.WebUIURL)
+    f.Text("webuiKey", "Open WebUI API Key [{maskKey(cfg.WebUIAPIKey)}]: ")
+    f.Default("webuiKey", cfg.WebUIAPIKey)
+    f.Text("model", "Model [{cfg.Model}]: ")
+    f.Default("model", cfg.Model)
+    f.Text("mcpURL", "terminal MCP URL [{cfg.TerminalMCPURL}]: ")
+    f.Default("mcpURL", cfg.TerminalMCPURL)
+    f.Text("mcpKey", "terminal MCP API Key [{maskKey(cfg.TerminalMCPAPIKey)}]: ")
+    f.Default("mcpKey", cfg.TerminalMCPAPIKey)
+    f.Text("sandbox", "Sandbox directory [{cfg.SandboxDir}]: ")
+    f.Default("sandbox", cfg.SandboxDir)
 
-    v = input.ReadLine("Open WebUI API Key [{maskKey(cfg.WebUIAPIKey)}]: ") onerr ""
-    if v isnt ""
-        cfg.WebUIAPIKey = v
+    f.Run() onerr return
 
-    v = input.ReadLine("Model [{cfg.Model}]: ") onerr ""
-    if v isnt ""
-        cfg.Model = v
-
-    v = input.ReadLine("terminal MCP URL [{cfg.TerminalMCPURL}]: ") onerr ""
-    if v isnt ""
-        cfg.TerminalMCPURL = v
-
-    v = input.ReadLine("terminal MCP API Key [{maskKey(cfg.TerminalMCPAPIKey)}]: ") onerr ""
-    if v isnt ""
-        cfg.TerminalMCPAPIKey = v
-
-    v = input.ReadLine("Sandbox directory [{cfg.SandboxDir}]: ") onerr ""
-    if v isnt ""
-        cfg.SandboxDir = v
+    cfg.WebUIURL = f.String("webuiURL")
+    cfg.WebUIAPIKey = f.String("webuiKey")
+    cfg.Model = f.String("model")
+    cfg.TerminalMCPURL = f.String("mcpURL")
+    cfg.TerminalMCPAPIKey = f.String("mcpKey")
+    cfg.SandboxDir = f.String("sandbox")
 
     saveConfig(cfg) onerr return
     print(color.Green("Saved to {defaultConfigPath()}"))
