@@ -188,7 +188,7 @@ func dispatchLocalTool(lt: LocalTools, name: string, argsJSON: string) (string, 
             return localGrepFiles(lt, argsJSON)
         when "run_command"
             return localRunCommand(lt, argsJSON)
-        otherwise
+        default
             return "", error "unknown local tool: {name}"
 
 # ---- Arg structs ----
