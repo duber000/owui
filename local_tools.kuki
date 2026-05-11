@@ -45,6 +45,27 @@ func defaultCmdAllowList() list of string
         "which",
     }
 
+# LocalTool is the closed set of built-in tool names exposed to the LLM.
+# The raw values are the wire-format names sent to and received from the LLM.
+# ParseLocalTool is used at the dispatch boundary to reject unknown names.
+enum LocalTool: string
+    ReadFile = "read_file"
+    WriteFile = "write_file"
+    ListDir = "list_dir"
+    SearchFiles = "search_files"
+    GrepFiles = "grep_files"
+    RunCommand = "run_command"
+
+func allLocalTools() list of LocalTool
+    return list of LocalTool{
+        LocalTool.ReadFile,
+        LocalTool.WriteFile,
+        LocalTool.ListDir,
+        LocalTool.SearchFiles,
+        LocalTool.GrepFiles,
+        LocalTool.RunCommand,
+    }
+
 # LocalTools holds the sandbox root and optional network guard.
 type LocalTools
     Box sandbox.Root
@@ -89,15 +110,8 @@ func closeLocalTools(lt: LocalTools) error
 func registerLocalTools(b: reference Bridge, cfg: Config) error
     lt := buildLocalTools(cfg) onerr return
     b.LocalTools = lt
-    for _, name in list of string{
-        "read_file",
-        "write_file",
-        "list_dir",
-        "search_files",
-        "grep_files",
-        "run_command",
-    }
-        b.LocalToolNames[name] = true
+    for _, t in allLocalTools()
+        b.LocalToolNames[t.String()] = true
     return empty
 
 # ---- Tool registry ----
@@ -116,12 +130,14 @@ func toolDef(name: string, description: string, schema: map of string to any) ch
 func localToolDefs() list of chat.Tool
     readSchema := llm.Schema(list of llm.SchemaProperty{
         llm.Prop("path", "string", "File path relative to sandbox root"),
-    }) |> llm.Required(list of string{"path"})
+    })
+        |> llm.Required(list of string{"path"})
 
     writeSchema := llm.Schema(list of llm.SchemaProperty{
         llm.Prop("path", "string", "File path relative to sandbox root"),
         llm.Prop("content", "string", "Content to write"),
-    }) |> llm.Required(list of string{"path", "content"})
+    })
+        |> llm.Required(list of string{"path", "content"})
 
     listSchema := llm.Schema(list of llm.SchemaProperty{
         llm.Prop("path", "string", "Directory path relative to sandbox root (default: .)"),
@@ -129,12 +145,14 @@ func localToolDefs() list of chat.Tool
 
     searchSchema := llm.Schema(list of llm.SchemaProperty{
         llm.Prop("pattern", "string", "File name glob pattern (e.g. *.go, main.*)"),
-    }) |> llm.Required(list of string{"pattern"})
+    })
+        |> llm.Required(list of string{"pattern"})
 
     grepSchema := llm.Schema(list of llm.SchemaProperty{
         llm.Prop("pattern", "string", "Regex or literal text to search for"),
         llm.Prop("path", "string", "Path within sandbox to search (default: .)"),
-    }) |> llm.Required(list of string{"pattern"})
+    })
+        |> llm.Required(list of string{"pattern"})
 
     # run_command has an array-typed `args` property — llm.Schema only
     # expresses scalar types today, so build this one by hand.
@@ -156,17 +174,33 @@ func localToolDefs() list of chat.Tool
     }
 
     return list of chat.Tool{
-        toolDef("read_file", "Read the contents of a file within the sandbox", readSchema),
-        toolDef("write_file", "Write or overwrite a file within the sandbox", writeSchema),
-        toolDef("list_dir", "List files and directories within a sandbox directory", listSchema),
         toolDef(
-            "search_files",
+            LocalTool.ReadFile.String(),
+            "Read the contents of a file within the sandbox",
+            readSchema,
+        ),
+        toolDef(
+            LocalTool.WriteFile.String(),
+            "Write or overwrite a file within the sandbox",
+            writeSchema,
+        ),
+        toolDef(
+            LocalTool.ListDir.String(),
+            "List files and directories within a sandbox directory",
+            listSchema,
+        ),
+        toolDef(
+            LocalTool.SearchFiles.String(),
             "Search for files matching a name pattern within the sandbox",
             searchSchema,
         ),
-        toolDef("grep_files", "Search file contents for a pattern within the sandbox", grepSchema),
         toolDef(
-            "run_command",
+            LocalTool.GrepFiles.String(),
+            "Search file contents for a pattern within the sandbox",
+            grepSchema,
+        ),
+        toolDef(
+            LocalTool.RunCommand.String(),
             "Run an allowlisted shell command in the sandbox directory",
             runSchema,
         ),
@@ -175,21 +209,23 @@ func localToolDefs() list of chat.Tool
 # ---- Tool dispatch ----
 
 func dispatchLocalTool(lt: LocalTools, name: string, argsJSON: string) (string, error)
-    switch name
-        when "read_file"
+    tool, ok := ParseLocalTool(name)
+    if not ok
+        return "", error "unknown local tool: {name}"
+    switch tool
+        when LocalTool.ReadFile
             return localReadFile(lt, argsJSON)
-        when "write_file"
+        when LocalTool.WriteFile
             return localWriteFile(lt, argsJSON)
-        when "list_dir"
+        when LocalTool.ListDir
             return localListDir(lt, argsJSON)
-        when "search_files"
+        when LocalTool.SearchFiles
             return localSearchFiles(lt, argsJSON)
-        when "grep_files"
+        when LocalTool.GrepFiles
             return localGrepFiles(lt, argsJSON)
-        when "run_command"
+        when LocalTool.RunCommand
             return localRunCommand(lt, argsJSON)
-        default
-            return "", error "unknown local tool: {name}"
+    return "", error "unreachable local tool: {name}"
 
 # ---- Arg structs ----
 
