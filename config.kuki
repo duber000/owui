@@ -49,35 +49,26 @@ func loadConfig() Config
     if cfg.MCPServers equals empty
         cfg.MCPServers = make(map of string to MCPServerConfig)
 
-    # Environment variables override file settings
-    v := env.GetOr("OWUI_WEBUI_URL", "")
-    if v isnt ""
-        cfg.WebUIURL = v
-
-    v = env.GetOr("OWUI_WEBUI_API_KEY", "")
-    if v isnt ""
-        cfg.WebUIAPIKey = v
-
-    v = env.GetOr("OWUI_MODEL", "")
-    if v isnt ""
-        cfg.Model = v
-
-    v = env.GetOr("OWUI_TERMINAL_MCP_URL", "")
-    if v isnt ""
-        cfg.TerminalMCPURL = v
-
-    v = env.GetOr("OWUI_TERMINAL_MCP_API_KEY", "")
-    if v isnt ""
-        cfg.TerminalMCPAPIKey = v
+    # Environment variables override file settings.
+    # envOr keeps the prior value when the env var is unset *or* set to ""
+    # so an explicit empty string can't accidentally clobber a configured value.
+    cfg.WebUIURL = envOr("OWUI_WEBUI_URL", cfg.WebUIURL)
+    cfg.WebUIAPIKey = envOr("OWUI_WEBUI_API_KEY", cfg.WebUIAPIKey)
+    cfg.Model = envOr("OWUI_MODEL", cfg.Model)
+    cfg.TerminalMCPURL = envOr("OWUI_TERMINAL_MCP_URL", cfg.TerminalMCPURL)
+    cfg.TerminalMCPAPIKey = envOr("OWUI_TERMINAL_MCP_API_KEY", cfg.TerminalMCPAPIKey)
+    cfg.SandboxDir = envOr("OWUI_SANDBOX_DIR", cfg.SandboxDir)
 
     if cfg.TerminalMCPURL isnt ""
         cfg.MCPServers["terminal"] = MCPServerConfig{URL: cfg.TerminalMCPURL, APIKey: cfg.TerminalMCPAPIKey}
 
-    v = env.GetOr("OWUI_SANDBOX_DIR", "")
-    if v isnt ""
-        cfg.SandboxDir = v
-
     return cfg
+
+func envOr(name: string, defaultValue: string) string
+    v := env.GetOr(name, "")
+    if v isnt ""
+        return v
+    return defaultValue
 
 func saveConfig(cfg: Config) error
     path := defaultConfigPath()

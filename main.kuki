@@ -43,36 +43,31 @@ func main()
     flagSchema := cli.GetBool(parsed, "schema")
     positional := cli.GetRest(parsed, "args")
 
-    # Dispatch subcommands
+    # Dispatch subcommands; anything else falls through to agent mode
     if len(positional) > 0
-        cmd := positional[0]
-        if cmd equals "models"
-            cmdListModels() onerr
-                cli.Fatal(color.BrightRed("error: {error}"))
-
-            return
-        if cmd equals "tools"
-            cmdListTools(flagSchema) onerr
-                cli.Fatal(color.BrightRed("error: {error}"))
-
-            return
-        if cmd equals "health"
-            cmdHealth() onerr
-                cli.Fatal(color.BrightRed("error: {error}"))
-
-            return
-        if cmd equals "configure"
-            cmdConfigure() onerr
-                cli.Fatal(color.BrightRed("error: {error}"))
-
-            return
-        if cmd equals "version"
-            print("owui {version}")
+        handled, err := dispatchSubcommand(positional[0], flagSchema)
+        if handled
+            if err isnt empty
+                cli.Fatal(color.BrightRed("error: {err}"))
             return
 
     # Default: agent mode
     cmdRun(positional, flagModel, flagChat, flagRaw, flagSystem) onerr
         cli.Fatal(color.BrightRed("error: {error}"))
+
+func dispatchSubcommand(cmd: string, flagSchema: bool) (bool, error)
+    if cmd equals "models"
+        return true, cmdListModels()
+    if cmd equals "tools"
+        return true, cmdListTools(flagSchema)
+    if cmd equals "health"
+        return true, cmdHealth()
+    if cmd equals "configure"
+        return true, cmdConfigure()
+    if cmd equals "version"
+        print("owui {version}")
+        return true, empty
+    return false, empty
 
 # ---- Agent mode ----
 
@@ -84,8 +79,22 @@ func cmdRun(positional: list of string, flagModel: string, flagChat: bool, flagR
 
     ctx := context.Background()
 
-    bridge := connectBridges(ctx, cfg.MCPServers) onerr return error "connecting to MCP servers: {error}"
-    defer closeBridges(bridge)
+    a := buildAgent(ctx, cfg, flagSystem) onerr return
+    defer closeBridges(a.Bridge)
+
+    prompt := gatherPrompt(positional)
+
+    if flagChat
+        runChat(ctx, a, prompt)
+        return empty
+
+    if prompt equals ""
+        return error "no prompt provided — use -c for interactive chat"
+
+    return runOneShot(ctx, a, prompt, flagRaw)
+
+func buildAgent(ctx: context.Context, cfg: Config, flagSystem: string) (reference Agent, error)
+    bridge := connectBridges(ctx, cfg.MCPServers) onerr return empty, error "connecting to MCP servers: {error}"
 
     registerLocalTools(bridge, cfg) onerr
         cli.Error(color.Dim("warning: local tools unavailable: {error}"))
@@ -111,25 +120,13 @@ func cmdRun(positional: list of string, flagModel: string, flagChat: bool, flagR
         if isTTYErr()
             cli.Error(color.Dim("Loaded AGENTS.md from current directory"))
 
-    prompt := gatherPrompt(positional)
+    return a, empty
 
-    # Interactive chat
-    if flagChat
-        runChat(ctx, a, prompt)
-        return empty
-
-    # Pipe / one-shot
-    if prompt equals ""
-        return error "no prompt provided — use -c for interactive chat"
-
+func runOneShot(ctx: context.Context, a: reference Agent, prompt: string, flagRaw: bool) error
     isTTY := isTTYOut()
 
     if isTTY
-        a.OnToolCall = func(name: string, toolArgs: string)
-            cli.Error("{color.Yellow("-> {name}")} {color.Dim(truncateFmt(toolArgs, 80))}")
-
-        a.OnToolResult = func(name: string, result: string)
-            cli.Error("{color.Yellow("<- {name}")} {color.Dim(truncateFmt(result, 120))}")
+        setToolCallbacks(a, "", 80, 120)
 
     a.OnText = func(chunk: string)
         if isTTY and not flagRaw
@@ -284,11 +281,7 @@ func runChat(ctx: context.Context, a: reference Agent, initialPrompt: string)
             if prompt equals ""
                 continue
 
-        a.OnToolCall = func(name: string, toolArgs: string)
-            cli.Error("  {color.Yellow("-> {name}")} {color.Dim(truncateFmt(toolArgs, 60))}")
-
-        a.OnToolResult = func(name: string, result: string)
-            cli.Error("  {color.Yellow("<- {name}")} {color.Dim(truncateFmt(result, 80))}")
+        setToolCallbacks(a, "  ", 60, 80)
 
         # Stream response chunks; print the model prefix lazily on the first chunk
         # so tool-call output (stderr) appears before the response line starts.
@@ -342,6 +335,8 @@ func isTerminal(f: reference os.File) bool
     info, err := f.Stat()
     if err isnt empty
         return false
+    # 0x200000 is os.ModeCharDevice (1<<21) — set when the fd is a character
+    # device (i.e. a terminal), unset for pipes/files/sockets.
     return (info.Mode() & 0x200000) isnt 0
 
 func isTTYOut() bool
@@ -355,34 +350,19 @@ func maskKey(k: string) string
         return "--------"
     return "{k[:4]}...{k[len(k) - 4:]}"
 
+func setToolCallbacks(a: reference Agent, indent: string, argsWidth: int, resultWidth: int)
+    a.OnToolCall = func(name: string, toolArgs: string)
+        cli.Error(
+            "{indent}{color.Yellow("-> {name}")} {color.Dim(truncateFmt(toolArgs, argsWidth))}",
+        )
+
+    a.OnToolResult = func(name: string, result: string)
+        cli.Error(
+            "{indent}{color.Yellow("<- {name}")} {color.Dim(truncateFmt(result, resultWidth))}",
+        )
+
 func truncateFmt(s: string, n: int) string
     s = strpkg.ReplaceAll(s, "\n", " ")
     if len(s) <= n
         return s
     return s[:n - 3] + "..."
-
-func printUsage()
-    print("owui — CLI agent: Open WebUI models + Open Terminal via MCP")
-    print("")
-    print("Usage:")
-    print("  owui [flags] [prompt]     Agent mode (one-shot or piped)")
-    print("  owui -c [prompt]          Interactive chat")
-    print("  owui models               List available models")
-    print("  owui tools                List MCP tools")
-    print("  owui health               Check connectivity")
-    print("  owui configure            Save configuration")
-    print("  owui version              Print version")
-    print("")
-    print("Flags:")
-    print("  -m, --model <model>       Override model")
-    print("  -c, --chat                Interactive chat mode")
-    print("  -S, --system <prompt>     Override system prompt")
-    print("  --raw                     Raw output (no formatting)")
-    print("")
-    print("Environment:")
-    print("  OWUI_WEBUI_URL            Open WebUI URL (default: http://localhost:3000)")
-    print("  OWUI_WEBUI_API_KEY        Open WebUI API key (required)")
-    print("  OWUI_MODEL                Model name (default: llama3.1)")
-    print("  OWUI_TERMINAL_MCP_URL     terminal MCP URL (default: http://127.0.0.1:9000/mcp)")
-    print("  OWUI_TERMINAL_MCP_API_KEY terminal MCP API key (optional, for authenticated servers)")
-    print("  OWUI_SANDBOX_DIR          sandbox root for built-in tools (default: cwd)")

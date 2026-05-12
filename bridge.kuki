@@ -102,28 +102,39 @@ func bridgeToolNames(b: reference Bridge) list of string
 
 # callBridgeTool dispatches a tool call — built-in tools first, then MCP servers.
 func callBridgeTool(ctx: context.Context, b: reference Bridge, name: string, argsJSON: string) (string, error)
-    _, isLocal := b.LocalToolNames[name]
-    if isLocal
+    if b.LocalToolNames[name]
         return dispatchLocalTool(b.LocalTools, name, argsJSON)
 
     route, ok := b.ToolMap[name]
     if not ok
         return "", error "unknown tool: {name}"
 
+    server := findServer(b, route.ServerName)
+    if server equals empty
+        return "", error "server {route.ServerName} not connected"
+
+    return invokeMCPTool(ctx, server, route.OriginalName, argsJSON)
+
+func findServer(b: reference Bridge, name: string) reference BridgeServer
     for _, s in b.Servers
-        if s.Name equals route.ServerName
-            args := make(map of string to any)
-            if argsJSON isnt "" and argsJSON isnt "{}"
-                args = jsonpkg.ParseString of map of string to any from argsJSON onerr return "", error "invalid tool arguments: {error}"
+        if s.Name equals name
+            return s
+    return empty
 
-            result := mcp.CallTool(ctx, s.Session, route.OriginalName, args) onerr return "", error "{error}"
+func invokeMCPTool(ctx: context.Context, s: reference BridgeServer, name: string, argsJSON: string) (string, error)
+    args := make(map of string to any)
+    if argsJSON isnt "" and argsJSON isnt "{}"
+        args = jsonpkg.ParseString of map of string to any from argsJSON onerr return "", error "invalid tool arguments: {error}"
 
-            if result.IsError
-                return "ERROR: {result.Text}", empty
+    result := mcp.CallTool(ctx, s.Session, name, args) onerr return "", error "{error}"
 
-            return result.Text, empty
+    if result.IsError
+        return "ERROR: {result.Text}", empty
 
-    return "", error "server {route.ServerName} not connected"
+    return result.Text, empty
 
+# sanitizeName replaces hyphens/slashes/spaces with underscores because
+# OpenAI's function-calling schema only accepts [a-zA-Z0-9_-] (effectively
+# underscores in our case) — many MCP servers expose tool names with `/` or ` `.
 func sanitizeName(name: string) string
     return regex.Replace(`[-/ ]`, "_", name)

@@ -159,7 +159,7 @@ func localToolDefs() list of chat.Tool
     runProps := map of string to any{
         "cmd": map of string to any{
             "type": "string",
-            "description": "Command name — allowed: bd cat cp date diff echo find git grep head ls mkdir mv pwd rm sort tail touch uniq wc which",
+            "description": "Command name — allowed: {strpkg.Join(defaultCmdAllowList(), " ")}",
         },
         "args": map of string to any{
             "type": "array",
@@ -286,15 +286,7 @@ func localSearchFiles(lt: LocalTools, argsJSON: string) (string, error)
     out := shell.New("find", sandboxPath)
         |> .Flag("-name", a.Pattern)
         |> .Execute()
-    raw := strpkg.TrimSpace(out.Stdout as string)
-    if raw equals ""
-        return "(no matches)", empty
-    prefix := sandboxPath + "/"
-    lines := strpkg.Split(raw, "\n")
-    results := lines
-        |> slice.Filter((l: string) bool => l isnt "")
-        |> slice.Map((l: string) string => strpkg.TrimPrefix(l, prefix))
-    return strpkg.Join(results, "\n"), empty
+    return formatRelativeMatches(out.Stdout as string, sandboxPath), empty
 
 func localGrepFiles(lt: LocalTools, argsJSON: string) (string, error)
     a := jsonpkg.ParseString of grepFilesArgs from argsJSON onerr return "", error "grep_files: bad args: {error}"
@@ -309,22 +301,25 @@ func localGrepFiles(lt: LocalTools, argsJSON: string) (string, error)
     if strpkg.HasPrefix(rel, "..")
         return "", error "grep_files: path escapes sandbox"
     out := shell.New("grep", "-r", "-n", a.Pattern, fullPath) |> .Execute()
-    raw := strpkg.TrimSpace(out.Stdout as string)
+    return formatRelativeMatches(out.Stdout as string, sandboxPath), empty
+
+# formatRelativeMatches trims the sandbox prefix from each non-empty line of `stdout`
+# so paths shown to the LLM are sandbox-relative, not absolute.
+func formatRelativeMatches(stdout: string, sandboxPath: string) string
+    raw := strpkg.TrimSpace(stdout)
     if raw equals ""
-        return "(no matches)", empty
+        return "(no matches)"
     prefix := sandboxPath + "/"
-    lines := strpkg.Split(raw, "\n")
-    results := lines
+    matches := strpkg.Split(raw, "\n")
         |> slice.Filter((l: string) bool => l isnt "")
         |> slice.Map((l: string) string => strpkg.TrimPrefix(l, prefix))
-    return strpkg.Join(results, "\n"), empty
+    return strpkg.Join(matches, "\n")
 
 func localRunCommand(lt: LocalTools, argsJSON: string) (string, error)
     a := jsonpkg.ParseString of runCommandArgs from argsJSON onerr return "", error "run_command: bad args: {error}"
     if a.Cmd equals ""
         return "", error "run_command: missing cmd"
-    _, ok := lt.AllowedCmds[a.Cmd]
-    if not ok
+    if not lt.AllowedCmds[a.Cmd]
         return "", error "run_command: '{a.Cmd}' is not in the allowed command list"
     sandboxPath := lt.Box.Path
     out := shell.New(a.Cmd, many a.Args) |> .Dir(sandboxPath) |> .Execute()
