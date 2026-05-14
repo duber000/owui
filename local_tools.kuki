@@ -206,29 +206,31 @@ func localToolDefs() list of chat.Tool
         ),
     }
 
-# ---- Tool dispatch ----
+# ---- Tool calls (variant enum) ----
 
-func dispatchLocalTool(lt: LocalTools, name: string, argsJSON: string) (string, error)
-    tool, ok := ParseLocalTool(name)
-    if not ok
-        return "", error "unknown local tool: {name}"
-    switch tool
-        when LocalTool.ReadFile
-            return localReadFile(lt, argsJSON)
-        when LocalTool.WriteFile
-            return localWriteFile(lt, argsJSON)
-        when LocalTool.ListDir
-            return localListDir(lt, argsJSON)
-        when LocalTool.SearchFiles
-            return localSearchFiles(lt, argsJSON)
-        when LocalTool.GrepFiles
-            return localGrepFiles(lt, argsJSON)
-        when LocalTool.RunCommand
-            return localRunCommand(lt, argsJSON)
-    return "", error "unreachable local tool: {name}"
+# LocalToolCall is the parsed, typed form of an LLM tool invocation. The
+# JSON-arg decode happens once in parseLocalToolCall; downstream handlers
+# receive validated, typed payloads. Adding a new tool variant here makes
+# the dispatch switch a compile error until every site handles it.
+enum LocalToolCall
+    ReadFile
+        path string
+    WriteFile
+        path string
+        content string
+    ListDir
+        path string
+    SearchFiles
+        pattern string
+    GrepFiles
+        pattern string
+        path string
+    RunCommand
+        cmd string
+        args list of string
 
-# ---- Arg structs ----
-
+# JSON-decode targets — kept private; they exist only to carry the wire
+# format's tags into the LocalToolCall constructor.
 type readFileArgs
     Path string as "path"
 
@@ -250,57 +252,103 @@ type runCommandArgs
     Cmd string as "cmd"
     Args list of string as "args"
 
+# parseLocalToolCall resolves the tool name and decodes its argument JSON
+# in one step. Missing-required-field validation lives here so handlers
+# see only well-formed inputs.
+func parseLocalToolCall(name: string, argsJSON: string) (LocalToolCall, error)
+    tool, ok := ParseLocalTool(name)
+    if not ok
+        return ReadFile{}, error "unknown local tool: {name}"
+    switch tool
+        when LocalTool.ReadFile
+            a := jsonpkg.ParseString of readFileArgs from argsJSON onerr return ReadFile{}, error "read_file: bad args: {error}"
+            if a.Path equals ""
+                return ReadFile{}, error "read_file: missing path"
+            return ReadFile{path: a.Path}, empty
+        when LocalTool.WriteFile
+            a := jsonpkg.ParseString of writeFileArgs from argsJSON onerr return ReadFile{}, error "write_file: bad args: {error}"
+            if a.Path equals ""
+                return ReadFile{}, error "write_file: missing path"
+            return WriteFile{path: a.Path, content: a.Content}, empty
+        when LocalTool.ListDir
+            # list_dir tolerates empty argsJSON — defaults to "."
+            a := listDirArgs{}
+            if argsJSON isnt "" and argsJSON isnt "{}"
+                a = jsonpkg.ParseString of listDirArgs from argsJSON onerr return ReadFile{}, error "list_dir: bad args: {error}"
+            path := a.Path
+            if path equals ""
+                path = "."
+            return ListDir{path: path}, empty
+        when LocalTool.SearchFiles
+            a := jsonpkg.ParseString of searchFilesArgs from argsJSON onerr return ReadFile{}, error "search_files: bad args: {error}"
+            if a.Pattern equals ""
+                return ReadFile{}, error "search_files: missing pattern"
+            return SearchFiles{pattern: a.Pattern}, empty
+        when LocalTool.GrepFiles
+            a := jsonpkg.ParseString of grepFilesArgs from argsJSON onerr return ReadFile{}, error "grep_files: bad args: {error}"
+            if a.Pattern equals ""
+                return ReadFile{}, error "grep_files: missing pattern"
+            searchPath := a.Path
+            if searchPath equals ""
+                searchPath = "."
+            return GrepFiles{pattern: a.Pattern, path: searchPath}, empty
+        when LocalTool.RunCommand
+            a := jsonpkg.ParseString of runCommandArgs from argsJSON onerr return ReadFile{}, error "run_command: bad args: {error}"
+            if a.Cmd equals ""
+                return ReadFile{}, error "run_command: missing cmd"
+            return RunCommand{cmd: a.Cmd, args: a.Args}, empty
+    return ReadFile{}, error "unreachable local tool: {name}"
+
+# ---- Tool dispatch ----
+
+func dispatchLocalTool(lt: LocalTools, name: string, argsJSON: string) (string, error)
+    call, err := parseLocalToolCall(name, argsJSON)
+    if err isnt empty
+        return "", err
+    switch call as v
+        when ReadFile
+            return localReadFile(lt, v.path)
+        when WriteFile
+            return localWriteFile(lt, v.path, v.content)
+        when ListDir
+            return localListDir(lt, v.path)
+        when SearchFiles
+            return localSearchFiles(lt, v.pattern)
+        when GrepFiles
+            return localGrepFiles(lt, v.pattern, v.path)
+        when RunCommand
+            return localRunCommand(lt, v.cmd, v.args)
+
 # ---- Implementations ----
 
-func localReadFile(lt: LocalTools, argsJSON: string) (string, error)
-    a := jsonpkg.ParseString of readFileArgs from argsJSON onerr return "", error "read_file: bad args: {error}"
-    if a.Path equals ""
-        return "", error "read_file: missing path"
-    content := sandbox.ReadString(lt.Box, a.Path) onerr return "", error "read_file: {error}"
+func localReadFile(lt: LocalTools, path: string) (string, error)
+    content := sandbox.ReadString(lt.Box, path) onerr return "", error "read_file: {error}"
     return content, empty
 
-func localWriteFile(lt: LocalTools, argsJSON: string) (string, error)
-    a := jsonpkg.ParseString of writeFileArgs from argsJSON onerr return "", error "write_file: bad args: {error}"
-    if a.Path equals ""
-        return "", error "write_file: missing path"
-    sandbox.WriteString(lt.Box, a.Content, a.Path) onerr return "", error "write_file: {error}"
-    return "wrote {len(a.Content)} bytes to {a.Path}", empty
+func localWriteFile(lt: LocalTools, path: string, content: string) (string, error)
+    sandbox.WriteString(lt.Box, content, path) onerr return "", error "write_file: {error}"
+    return "wrote {len(content)} bytes to {path}", empty
 
-func localListDir(lt: LocalTools, argsJSON: string) (string, error)
-    a := listDirArgs{}
-    if argsJSON isnt "" and argsJSON isnt "{}"
-        a = jsonpkg.ParseString of listDirArgs from argsJSON onerr return "", error "list_dir: bad args: {error}"
-    path := a.Path
-    if path equals ""
-        path = "."
+func localListDir(lt: LocalTools, path: string) (string, error)
     names := sandbox.List(lt.Box, path) onerr return "", error "list_dir: {error}"
     if len(names) equals 0
         return "(empty)", empty
     return strpkg.Join(names, "\n"), empty
 
-func localSearchFiles(lt: LocalTools, argsJSON: string) (string, error)
-    a := jsonpkg.ParseString of searchFilesArgs from argsJSON onerr return "", error "search_files: bad args: {error}"
-    if a.Pattern equals ""
-        return "", error "search_files: missing pattern"
+func localSearchFiles(lt: LocalTools, pattern: string) (string, error)
     sandboxPath := lt.Box.Path
     out := shell.New("find", sandboxPath)
-        |> .Flag("-name", a.Pattern)
+        |> .Flag("-name", pattern)
         |> .Execute()
     return formatRelativeMatches(out.Stdout as string, sandboxPath), empty
 
-func localGrepFiles(lt: LocalTools, argsJSON: string) (string, error)
-    a := jsonpkg.ParseString of grepFilesArgs from argsJSON onerr return "", error "grep_files: bad args: {error}"
-    if a.Pattern equals ""
-        return "", error "grep_files: missing pattern"
+func localGrepFiles(lt: LocalTools, pattern: string, searchPath: string) (string, error)
     sandboxPath := lt.Box.Path
-    searchPath := a.Path
-    if searchPath equals ""
-        searchPath = "."
     fullPath := filepath.Join(sandboxPath, searchPath)
     rel := filepath.Rel(sandboxPath, fullPath) onerr return "", error "grep_files: invalid path"
     if strpkg.HasPrefix(rel, "..")
         return "", error "grep_files: path escapes sandbox"
-    out := shell.New("grep", "-r", "-n", a.Pattern, fullPath) |> .Execute()
+    out := shell.New("grep", "-r", "-n", pattern, fullPath) |> .Execute()
     return formatRelativeMatches(out.Stdout as string, sandboxPath), empty
 
 # formatRelativeMatches trims the sandbox prefix from each non-empty line of `stdout`
@@ -315,14 +363,11 @@ func formatRelativeMatches(stdout: string, sandboxPath: string) string
         |> slice.Map((l: string) string => strpkg.TrimPrefix(l, prefix))
     return strpkg.Join(matches, "\n")
 
-func localRunCommand(lt: LocalTools, argsJSON: string) (string, error)
-    a := jsonpkg.ParseString of runCommandArgs from argsJSON onerr return "", error "run_command: bad args: {error}"
-    if a.Cmd equals ""
-        return "", error "run_command: missing cmd"
-    if not lt.AllowedCmds[a.Cmd]
-        return "", error "run_command: '{a.Cmd}' is not in the allowed command list"
+func localRunCommand(lt: LocalTools, cmd: string, args: list of string) (string, error)
+    if not lt.AllowedCmds[cmd]
+        return "", error "run_command: '{cmd}' is not in the allowed command list"
     sandboxPath := lt.Box.Path
-    out := shell.New(a.Cmd, many a.Args) |> .Dir(sandboxPath) |> .Execute()
+    out := shell.New(cmd, many args) |> .Dir(sandboxPath) |> .Execute()
     stdout := strpkg.TrimSpace(out.Stdout as string)
     stderr := strpkg.TrimSpace(out.Stderr as string)
     combined := stdout
