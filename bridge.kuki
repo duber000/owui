@@ -94,7 +94,7 @@ func bridgeTools(b: reference Bridge) list of chat.Tool
     return tools
 
 func bridgeToolCount(b: reference Bridge) int
-    serverCounts := b.Servers |> slice.Map((s) => len(s.Tools))
+    serverCounts := b.Servers |> slice.Map(s => len(s.Tools))
     return len(b.LocalToolNames) + slice.Sum(serverCounts)
 
 func bridgeToolNames(b: reference Bridge) list of string
