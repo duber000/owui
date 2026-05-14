@@ -128,31 +128,31 @@ func toolDef(name: string, description: string, schema: map of string to any) ch
     }
 
 func localToolDefs() list of chat.Tool
-    readSchema := llm.Schema(list of llm.SchemaProperty{
+    readSchema := llm.Schema({
         llm.Prop("path", "string", "File path relative to sandbox root"),
     })
-        |> llm.Required(list of string{"path"})
+        |> llm.Required({"path"})
 
-    writeSchema := llm.Schema(list of llm.SchemaProperty{
+    writeSchema := llm.Schema({
         llm.Prop("path", "string", "File path relative to sandbox root"),
         llm.Prop("content", "string", "Content to write"),
     })
-        |> llm.Required(list of string{"path", "content"})
+        |> llm.Required({"path", "content"})
 
-    listSchema := llm.Schema(list of llm.SchemaProperty{
+    listSchema := llm.Schema({
         llm.Prop("path", "string", "Directory path relative to sandbox root (default: .)"),
     })
 
-    searchSchema := llm.Schema(list of llm.SchemaProperty{
+    searchSchema := llm.Schema({
         llm.Prop("pattern", "string", "File name glob pattern (e.g. *.go, main.*)"),
     })
-        |> llm.Required(list of string{"pattern"})
+        |> llm.Required({"pattern"})
 
-    grepSchema := llm.Schema(list of llm.SchemaProperty{
+    grepSchema := llm.Schema({
         llm.Prop("pattern", "string", "Regex or literal text to search for"),
         llm.Prop("path", "string", "Path within sandbox to search (default: .)"),
     })
-        |> llm.Required(list of string{"pattern"})
+        |> llm.Required({"pattern"})
 
     # run_command has an array-typed `args` property — llm.Schema only
     # expresses scalar types today, so build this one by hand.

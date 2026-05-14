@@ -5,6 +5,8 @@
 petiole main
 
 import "context"
+import "stdlib/cli"
+import "stdlib/color"
 import "stdlib/json" as jsonpkg
 import "stdlib/llm/chat"
 import "stdlib/mcp"
@@ -35,12 +37,15 @@ func connectBridges(ctx: context.Context, configs: map of string to MCPServerCon
     }
 
     for name, cfg in configs
-        session := connectOne(ctx, cfg) onerr continue
+        session := connectOne(ctx, cfg) onerr
+            cli.Error(color.Dim("warning: MCP {name} ({cfg.URL}) connect failed: {error}"))
+            continue
 
         server := reference of BridgeServer{Name: name, URL: cfg.URL, Session: session}
 
         # Refresh tools for this server
         tools := mcp.ListTools(ctx, session) onerr
+            cli.Error(color.Dim("warning: MCP {name} ({cfg.URL}) list tools failed: {error}"))
             mcp.Close(session)
             continue
 
@@ -89,7 +94,7 @@ func bridgeTools(b: reference Bridge) list of chat.Tool
     return tools
 
 func bridgeToolCount(b: reference Bridge) int
-    serverCounts := b.Servers |> slice.Map((s: reference BridgeServer) => len(s.Tools))
+    serverCounts := b.Servers |> slice.Map((s) => len(s.Tools))
     return len(b.LocalToolNames) + slice.Sum(serverCounts)
 
 func bridgeToolNames(b: reference Bridge) list of string
