@@ -223,7 +223,7 @@ func cmdHealth() error
     # MCP Servers
     for name, mcfg in cfg.MCPServers
         fmt.Print("{name} MCP ({mcfg.URL})  ")
-        m := make(map of string to MCPServerConfig)
+        m := make(MCPServers)
         m[name] = mcfg
         bridge, err := connectBridges(ctx, m)
         if err isnt empty

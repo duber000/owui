@@ -8,6 +8,7 @@ import "context"
 import "stdlib/cli"
 import "stdlib/color"
 import "stdlib/json" as jsonpkg
+import "stdlib/llm"
 import "stdlib/llm/chat"
 import "stdlib/mcp"
 import "stdlib/regex"
@@ -27,13 +28,13 @@ type Bridge
     Servers list of reference BridgeServer
     ToolMap map of string to ToolRoute
     LocalTools LocalTools
-    LocalToolNames map of string to bool
+    LocalToolNames StringSet
 
-func connectBridges(ctx: context.Context, configs: map of string to MCPServerConfig) (reference Bridge, error)
+func connectBridges(ctx: context.Context, configs: MCPServers) (reference Bridge, error)
     b := reference of Bridge{
         Servers: make(list of reference BridgeServer, 0),
         ToolMap: make(map of string to ToolRoute),
-        LocalToolNames: make(map of string to bool),
+        LocalToolNames: make(StringSet),
     }
 
     for name, cfg in configs
@@ -127,9 +128,9 @@ func findServer(b: reference Bridge, name: string) reference BridgeServer
     return empty
 
 func invokeMCPTool(ctx: context.Context, s: reference BridgeServer, name: string, argsJSON: string) (string, error)
-    args := make(map of string to any)
+    args := make(llm.JSONObject)
     if argsJSON isnt "" and argsJSON isnt "{}"
-        args = jsonpkg.ParseString of map of string to any from argsJSON onerr return "", error "invalid tool arguments: {error}"
+        args = jsonpkg.ParseString of llm.JSONObject from argsJSON onerr return "", error "invalid tool arguments: {error}"
 
     result := mcp.CallTool(ctx, s.Session, name, args) onerr return "", error "{error}"
 

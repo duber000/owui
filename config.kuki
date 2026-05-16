@@ -12,11 +12,15 @@ type MCPServerConfig
     URL string as "url"
     APIKey string as "api_key"
 
+type MCPServers = map of string to MCPServerConfig
+
+type StringSet = map of string to bool
+
 type Config
     WebUIURL string as "webui_url"
     WebUIAPIKey string as "webui_api_key"
     Model string as "model"
-    MCPServers map of string to MCPServerConfig as "mcp_servers"
+    MCPServers MCPServers as "mcp_servers"
     TerminalMCPURL string as "terminal_mcp_url"
     TerminalMCPAPIKey string as "terminal_mcp_api_key"
     MaxToolRounds int as "max_tool_rounds"
@@ -35,7 +39,7 @@ func loadConfig() Config
         TerminalMCPURL: "http://127.0.0.1:9000/mcp",
         Model: "llama3.1",
         MaxToolRounds: 15,
-        MCPServers: make(map of string to MCPServerConfig),
+        MCPServers: make(MCPServers),
         IPAllowList: make(list of string, 0),
         IPBlockList: make(list of string, 0),
         CmdAllowList: make(list of string, 0),
@@ -47,7 +51,7 @@ func loadConfig() Config
         cfg = jsonpkg.ParseString of Config from data onerr panic "invalid config.json: {error}"
 
     if cfg.MCPServers equals empty
-        cfg.MCPServers = make(map of string to MCPServerConfig)
+        cfg.MCPServers = make(MCPServers)
 
     # Environment variables override file settings.
     # envOr keeps the prior value when the env var is unset *or* set to ""

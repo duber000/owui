@@ -71,12 +71,12 @@ type LocalTools
     Box sandbox.Root
     Guard netguard.Guard
     HasGuard bool
-    AllowedCmds map of string to bool
+    AllowedCmds StringSet
 
 # buildLocalTools initialises sandbox + optional netguard from Config.
 # Defaults sandbox root to the process CWD when SandboxDir is unset.
 func buildLocalTools(cfg: Config) (LocalTools, error)
-    lt := LocalTools{AllowedCmds: make(map of string to bool)}
+    lt := LocalTools{AllowedCmds: make(StringSet)}
 
     sandboxDir := cfg.SandboxDir
     if sandboxDir equals ""
@@ -117,7 +117,7 @@ func registerLocalTools(b: reference Bridge, cfg: Config) error
 # ---- Tool registry ----
 
 # toolDef wraps an chat.Tool literal so each registration reads as one line.
-func toolDef(name: string, description: string, schema: map of string to any) chat.Tool
+func toolDef(name: string, description: string, schema: llm.JSONObject) chat.Tool
     return chat.Tool{
         Type: "function",
         Function: chat.ToolFunction{
@@ -156,18 +156,18 @@ func localToolDefs() list of chat.Tool
 
     # run_command has an array-typed `args` property — llm.Schema only
     # expresses scalar types today, so build this one by hand.
-    runProps := map of string to any{
-        "cmd": map of string to any{
+    runProps := llm.JSONObject{
+        "cmd": llm.JSONObject{
             "type": "string",
             "description": "Command name — allowed: {strpkg.Join(defaultCmdAllowList(), " ")}",
         },
-        "args": map of string to any{
+        "args": llm.JSONObject{
             "type": "array",
-            "items": map of string to any{"type": "string"},
+            "items": llm.JSONObject{"type": "string"},
             "description": "Command arguments",
         },
     }
-    runSchema := map of string to any{
+    runSchema := llm.JSONObject{
         "type": "object",
         "properties": runProps,
         "required": list of string{"cmd"},

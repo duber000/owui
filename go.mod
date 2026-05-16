@@ -1,9 +1,7 @@
 module owui
 
-go 1.26.2
+go 1.26.3
 
-require github.com/kukichalang/kukicha/stdlib v0.6.8
-
-require github.com/modelcontextprotocol/go-sdk v1.5.0 // indirect
+require github.com/kukichalang/kukicha/stdlib v0.17.2
 
 replace github.com/kukichalang/kukicha/stdlib => ./.kukicha/stdlib
