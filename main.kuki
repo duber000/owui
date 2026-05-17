@@ -55,18 +55,29 @@ func main()
     cmdRun(positional, flagModel, flagChat, flagRaw, flagSystem) onerr
         cli.Fatal(color.BrightRed("error: {error}"))
 
+enum Subcommand: string
+    Models = "models"
+    Tools = "tools"
+    Health = "health"
+    Configure = "configure"
+    Version = "version"
+
 func dispatchSubcommand(cmd: string, flagSchema: bool) (bool, error)
-    if cmd equals "models"
-        return true, cmdListModels()
-    if cmd equals "tools"
-        return true, cmdListTools(flagSchema)
-    if cmd equals "health"
-        return true, cmdHealth()
-    if cmd equals "configure"
-        return true, cmdConfigure()
-    if cmd equals "version"
-        print("owui {version}")
-        return true, empty
+    sub, ok := ParseSubcommand(cmd)
+    if not ok
+        return false, empty
+    switch sub
+        when Subcommand.Models
+            return true, cmdListModels()
+        when Subcommand.Tools
+            return true, cmdListTools(flagSchema)
+        when Subcommand.Health
+            return true, cmdHealth()
+        when Subcommand.Configure
+            return true, cmdConfigure()
+        when Subcommand.Version
+            print("owui {version}")
+            return true, empty
     return false, empty
 
 # ---- Agent mode ----
