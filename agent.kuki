@@ -6,6 +6,7 @@ petiole main
 
 import "context"
 import "stdlib/json" as jsonpkg
+import "stdlib/llm"
 import "stdlib/llm/chat"
 import "stdlib/string" as strpkg
 
@@ -38,7 +39,16 @@ func runAgent(ctx: context.Context, a: reference Agent, userPrompt: string, hist
 
     for round from 0 to maxRounds
         client := buildLLMClient(a, messages, tools)
-        comp := chat.SendRaw(client) onerr return empty, error "LLM request failed (round {round}): {error}"
+        events, collect := chat.SendStream(client)
+
+        for evt in events
+            if a.OnText isnt empty
+                if evt is llm.Delta as d
+                    a.OnText(d.Body)
+
+        comp, sErr := collect()
+        if sErr isnt empty
+            return empty, error "LLM request failed (round {round}): {sErr}"
 
         content := chat.GetText(comp)
 
@@ -70,9 +80,6 @@ func buildLLMClient(a: reference Agent, messages: list of chat.Message, tools: l
 
     for t in tools
         client = chat.AddTool(client, t.Function.Name, t.Function.Description, t.Function.Parameters)
-
-    if a.OnText isnt empty
-        client = chat.Stream(client, a.OnText)
 
     if len(tools) > 0
         client = chat.ToolChoiceAuto(client)
