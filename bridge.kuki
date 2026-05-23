@@ -21,7 +21,7 @@ type ToolRoute
 type BridgeServer
     Name string
     URL string
-    Session reference mcp.ClientSession
+    Session nullable reference mcp.ClientSession
     Tools list of mcp.ClientTool
 
 type Bridge
