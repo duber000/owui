@@ -364,16 +364,11 @@ func maskKey(k: string) string
 func setToolCallbacks(a: reference Agent, indent: string, argsWidth: int, resultWidth: int)
     a.OnToolCall = func(name: string, toolArgs: string)
         cli.Error(
-            "{indent}{color.Yellow("-> {name}")} {color.Dim(truncateFmt(toolArgs, argsWidth))}",
+            "{indent}{color.Yellow("-> {name}")} {color.Dim(strpkg.Truncate(toolArgs, argsWidth))}",
         )
 
     a.OnToolResult = func(name: string, result: string)
         cli.Error(
-            "{indent}{color.Yellow("<- {name}")} {color.Dim(truncateFmt(result, resultWidth))}",
+            "{indent}{color.Yellow("<- {name}")} {color.Dim(strpkg.Truncate(result, resultWidth))}",
         )
 
-func truncateFmt(s: string, n: int) string
-    s = strpkg.ReplaceAll(s, "\n", " ")
-    if len(s) <= n
-        return s
-    return s[:n - 3] + "..."

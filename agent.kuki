@@ -99,7 +99,7 @@ func handleToolCalls(ctx: context.Context, a: reference Agent, messages: list of
             toolResult = "ERROR: {error}"
 
         if a.OnToolResult isnt empty
-            a.OnToolResult(tc.Function.Name, truncateFmt(toolResult, 500))
+            a.OnToolResult(tc.Function.Name, strpkg.Truncate(toolResult, 500))
 
         messages = append(messages, chat.Message{Role: "tool", Content: toolResult, ToolCallID: tc.ID})
 
