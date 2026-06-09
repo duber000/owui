@@ -305,19 +305,19 @@ func dispatchLocalTool(lt: LocalTools, name: string, argsJSON: string) (string, 
     call, err := parseLocalToolCall(name, argsJSON)
     if err isnt empty
         return "", err
-    switch call as v
+    switch call
         when ReadFile
-            return localReadFile(lt, v.path)
+            return localReadFile(lt, call.path)
         when WriteFile
-            return localWriteFile(lt, v.path, v.content)
+            return localWriteFile(lt, call.path, call.content)
         when ListDir
-            return localListDir(lt, v.path)
+            return localListDir(lt, call.path)
         when SearchFiles
-            return localSearchFiles(lt, v.pattern)
+            return localSearchFiles(lt, call.pattern)
         when GrepFiles
-            return localGrepFiles(lt, v.pattern, v.path)
+            return localGrepFiles(lt, call.pattern, call.path)
         when RunCommand
-            return localRunCommand(lt, v.cmd, v.args)
+            return localRunCommand(lt, call.cmd, call.args)
 
 # ---- Implementations ----
 
