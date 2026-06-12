@@ -13,18 +13,18 @@ import "stdlib/string" as strpkg
 const defaultSystemPrompt string = "You are a helpful assistant with access to a sandboxed Linux environment via tool calls. You can execute commands, read/write files, search, and manage the filesystem. Use these tools to help the user accomplish their goals. Be concise in your explanations but thorough in your tool usage."
 
 type Agent
-    Bridge optional reference Bridge
-    Config Config
-    SystemPrompt string
-    MaxRounds int
-    OnText func(string)
-    OnToolCall func(string, string)
-    OnToolResult func(string, string)
+    Bridge: reference Bridge
+    Config: Config
+    SystemPrompt: string
+    MaxRounds: int
+    OnText: func(string)
+    OnToolCall: func(string, string)
+    OnToolResult: func(string, string)
 
 type RunResult
-    Content string
-    Messages list of chat.Message
-    Rounds int
+    Content: string
+    Messages: list of chat.Message
+    Rounds: int
 
 func runAgent(ctx: context.Context, a: reference Agent, userPrompt: string, history: list of chat.Message) (reference RunResult, error)
     maxRounds := a.MaxRounds

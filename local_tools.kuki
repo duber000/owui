@@ -68,10 +68,10 @@ func allLocalTools() list of LocalTool
 
 # LocalTools holds the sandbox root and optional network guard.
 type LocalTools
-    Box sandbox.Root
-    Guard netguard.Guard
-    HasGuard bool
-    AllowedCmds StringSet
+    Box: sandbox.Root
+    Guard: netguard.Guard
+    HasGuard: bool
+    AllowedCmds: StringSet
 
 # buildLocalTools initialises sandbox + optional netguard from Config.
 # Defaults sandbox root to the process CWD when SandboxDir is unset.
@@ -108,7 +108,7 @@ func closeLocalTools(lt: LocalTools) error
 
 # registerLocalTools attaches built-in tools to an existing Bridge.
 func registerLocalTools(b: reference Bridge, cfg: Config) error
-    lt := buildLocalTools(cfg) onerr return
+    lt := buildLocalTools(cfg)
     b.LocalTools = lt
     for _, t in allLocalTools()
         b.LocalToolNames[t.String()] = true
@@ -214,50 +214,49 @@ func localToolDefs() list of chat.Tool
 # the dispatch switch a compile error until every site handles it.
 enum LocalToolCall
     ReadFile
-        path string
+        path: string
     WriteFile
-        path string
-        content string
+        path: string
+        content: string
     ListDir
-        path string
+        path: string
     SearchFiles
-        pattern string
+        pattern: string
     GrepFiles
-        pattern string
-        path string
+        pattern: string
+        path: string
     RunCommand
-        cmd string
-        args list of string
+        cmd: string
+        args: list of string
 
 # JSON-decode targets — kept private; they exist only to carry the wire
 # format's tags into the LocalToolCall constructor.
 type readFileArgs
-    Path string as "path"
+    Path: string as "path"
 
 type writeFileArgs
-    Path string as "path"
-    Content string as "content"
+    Path: string as "path"
+    Content: string as "content"
 
 type listDirArgs
-    Path string as "path"
+    Path: string as "path"
 
 type searchFilesArgs
-    Pattern string as "pattern"
+    Pattern: string as "pattern"
 
 type grepFilesArgs
-    Pattern string as "pattern"
-    Path string as "path"
+    Pattern: string as "pattern"
+    Path: string as "path"
 
 type runCommandArgs
-    Cmd string as "cmd"
-    Args list of string as "args"
+    Cmd: string as "cmd"
+    Args: list of string as "args"
 
 # parseLocalToolCall resolves the tool name and decodes its argument JSON
 # in one step. Missing-required-field validation lives here so handlers
 # see only well-formed inputs.
 func parseLocalToolCall(name: string, argsJSON: string) (LocalToolCall, error)
-    tool, ok := ParseLocalTool(name)
-    if not ok
+    tool := ParseLocalTool(name) onerr
         return ReadFile{}, error "unknown local tool: {name}"
     switch tool
         when LocalTool.ReadFile
@@ -305,7 +304,7 @@ func dispatchLocalTool(lt: LocalTools, name: string, argsJSON: string) (string, 
     call, err := parseLocalToolCall(name, argsJSON)
     if err isnt empty
         return "", err
-    switch call
+    switch call as call
         when ReadFile
             return localReadFile(lt, call.path)
         when WriteFile

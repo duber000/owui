@@ -63,9 +63,7 @@ enum Subcommand: string
     Version = "version"
 
 func dispatchSubcommand(cmd: string, flagSchema: bool) (bool, error)
-    sub, ok := ParseSubcommand(cmd)
-    if not ok
-        return false, empty
+    sub := ParseSubcommand(cmd) onerr return false, empty
     switch sub
         when Subcommand.Models
             return true, cmdListModels()
@@ -90,7 +88,7 @@ func cmdRun(positional: list of string, flagModel: string, flagChat: bool, flagR
 
     ctx := context.Background()
 
-    a := buildAgent(ctx, cfg, flagSystem) onerr return
+    a := buildAgent(ctx, cfg, flagSystem)
     defer closeBridges(a.Bridge)
 
     prompt := gatherPrompt(positional)
@@ -141,14 +139,14 @@ func runOneShot(ctx: context.Context, a: reference Agent, prompt: string, flagRa
 
     a.OnText = func(chunk: string)
         if isTTY and not flagRaw
-            fmt.Print(chunk)
+            fmt.Print(chunk) onerr discard
 
     result := runAgent(ctx, a, prompt, empty list of chat.Message) onerr return
 
     if isTTY and not flagRaw
         print("")
     else
-        fmt.Print(result.Content)
+        fmt.Print(result.Content) onerr discard
 
     if isTTY
         cli.Error(color.Dim("({result.Rounds} tool rounds)"))
@@ -158,11 +156,11 @@ func runOneShot(ctx: context.Context, a: reference Agent, prompt: string, flagRa
 # ---- Subcommands ----
 
 type ModelEntry
-    ID string as "id"
-    Name string as "name"
+    ID: string as "id"
+    Name: string as "name"
 
 type ModelsResponse
-    Data list of ModelEntry as "data"
+    Data: list of ModelEntry as "data"
 
 func cmdListModels() error
     cfg := loadConfig()
@@ -170,7 +168,7 @@ func cmdListModels() error
         return error "Open WebUI API key required"
 
     url := "{strpkg.TrimRight(cfg.WebUIURL, "/")}/api/models"
-    resp := fetch.New(url) |> fetch.BearerAuth(cfg.WebUIAPIKey) |> fetch.Do() onerr return
+    resp := fetch.New(url) |> fetch.BearerAuth(cfg.WebUIAPIKey) |> fetch.Do()
 
     defer resp.Body.Close()
 
@@ -179,7 +177,7 @@ func cmdListModels() error
         return error "HTTP {resp.StatusCode}: {body as string}"
 
     models := ModelsResponse{}
-    jsonpkg.ReadInto(resp.Body, reference of models) onerr return
+    jsonpkg.ReadInto(resp.Body, reference of models)
 
     print(color.Bold(color.Cyan("Available models:")))
     for _, m in models.Data
@@ -215,7 +213,7 @@ func cmdHealth() error
     ctx := context.Background()
 
     # Open WebUI
-    fmt.Print("Open WebUI  ({cfg.WebUIURL})  ")
+    fmt.Print("Open WebUI  ({cfg.WebUIURL})  ") onerr discard
     if cfg.WebUIAPIKey isnt ""
         url := "{strpkg.TrimRight(cfg.WebUIURL, "/")}/api/models"
         resp, err := fetch.New(url) |> fetch.BearerAuth(cfg.WebUIAPIKey) |> fetch.Do()
@@ -233,7 +231,7 @@ func cmdHealth() error
 
     # MCP Servers
     for name, mcfg in cfg.MCPServers
-        fmt.Print("{name} MCP ({mcfg.URL})  ")
+        fmt.Print("{name} MCP ({mcfg.URL})  ") onerr discard
         m := make(MCPServers)
         m[name] = mcfg
         bridge, err := connectBridges(ctx, m)
@@ -262,7 +260,7 @@ func cmdConfigure() error
     f.Text("sandbox", "Sandbox directory [{cfg.SandboxDir}]: ")
     f.Default("sandbox", cfg.SandboxDir)
 
-    f.Run() onerr return
+    f.Run()
 
     cfg.WebUIURL = f.String("webuiURL")
     cfg.WebUIAPIKey = f.String("webuiKey")
@@ -286,7 +284,9 @@ func runChat(ctx: context.Context, a: reference Agent, initialPrompt: string)
 
     for true
         if prompt equals ""
-            prompt = input.ReadLine(color.Bold(color.Cyan("you> "))) onerr break
+            prompt = input.ReadLine(color.Bold(color.Cyan("you> "))) onerr
+                break
+
             if prompt equals "exit" or prompt equals "quit"
                 break
             if prompt equals ""
@@ -299,9 +299,9 @@ func runChat(ctx: context.Context, a: reference Agent, initialPrompt: string)
         firstChunk := true
         a.OnText = func(chunk: string)
             if firstChunk
-                fmt.Print("\n{color.Dim(a.Config.Model)}  ")
+                fmt.Print("\n{color.Dim(a.Config.Model)}  ") onerr discard
                 firstChunk = false
-            fmt.Print(chunk)
+            fmt.Print(chunk) onerr discard
 
         result := runAgent(ctx, a, prompt, history) onerr
             print(color.BrightRed("error: {error}"))
@@ -371,4 +371,3 @@ func setToolCallbacks(a: reference Agent, indent: string, argsWidth: int, result
         cli.Error(
             "{indent}{color.Yellow("<- {name}")} {color.Dim(strpkg.Truncate(result, resultWidth))}",
         )
-

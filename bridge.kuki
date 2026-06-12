@@ -14,21 +14,23 @@ import "stdlib/mcp"
 import "stdlib/regex"
 import "stdlib/slice"
 
+var sanitizeRe = regex.MustCompile(`[-/ ]`)
+
 type ToolRoute
-    ServerName string
-    OriginalName string
+    ServerName: string
+    OriginalName: string
 
 type BridgeServer
-    Name string
-    URL string
-    Session optional reference mcp.ClientSession
-    Tools list of mcp.ClientTool
+    Name: string
+    URL: string
+    Session: reference mcp.ClientSession
+    Tools: list of mcp.ClientTool
 
 type Bridge
-    Servers list of reference BridgeServer
-    ToolMap map of string to ToolRoute
-    LocalTools LocalTools
-    LocalToolNames StringSet
+    Servers: list of reference BridgeServer
+    ToolMap: map of string to ToolRoute
+    LocalTools: LocalTools
+    LocalToolNames: StringSet
 
 func connectBridges(ctx: context.Context, configs: MCPServers) (reference Bridge, error)
     b := reference of Bridge{
@@ -143,4 +145,4 @@ func invokeMCPTool(ctx: context.Context, s: reference BridgeServer, name: string
 # OpenAI's function-calling schema only accepts [a-zA-Z0-9_-] (effectively
 # underscores in our case) — many MCP servers expose tool names with `/` or ` `.
 func sanitizeName(name: string) string
-    return regex.Replace(`[-/ ]`, "_", name)
+    return regex.ReplaceCompiled(sanitizeRe, "_", name)

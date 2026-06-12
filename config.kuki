@@ -9,25 +9,25 @@ import "stdlib/files"
 import "stdlib/json" as jsonpkg
 
 type MCPServerConfig
-    URL string as "url"
-    APIKey string as "api_key"
+    URL: string as "url"
+    APIKey: string as "api_key"
 
 type MCPServers = map of string to MCPServerConfig
 
 type StringSet = map of string to bool
 
 type Config
-    WebUIURL string as "webui_url"
-    WebUIAPIKey string as "webui_api_key"
-    Model string as "model"
-    MCPServers MCPServers as "mcp_servers"
-    TerminalMCPURL string as "terminal_mcp_url"
-    TerminalMCPAPIKey string as "terminal_mcp_api_key"
-    MaxToolRounds int as "max_tool_rounds"
-    SandboxDir string as "sandbox_dir"
-    IPAllowList list of string as "ip_allow"
-    IPBlockList list of string as "ip_block"
-    CmdAllowList list of string as "cmd_allow"
+    WebUIURL: string as "webui_url"
+    WebUIAPIKey: string as "webui_api_key"
+    Model: string as "model"
+    MCPServers: MCPServers as "mcp_servers"
+    TerminalMCPURL: string as "terminal_mcp_url"
+    TerminalMCPAPIKey: string as "terminal_mcp_api_key"
+    MaxToolRounds: int as "max_tool_rounds"
+    SandboxDir: string as "sandbox_dir"
+    IPAllowList: list of string as "ip_allow"
+    IPBlockList: list of string as "ip_block"
+    CmdAllowList: list of string as "cmd_allow"
 
 func defaultConfigPath() string
     home := os.UserHomeDir() onerr ""
@@ -76,8 +76,8 @@ func envOr(name: string, defaultValue: string) string
 
 func saveConfig(cfg: Config) error
     path := defaultConfigPath()
-    files.MkDirAll(files.Dirname(path)) onerr return
-    files.Write(cfg, path) onerr return
+    files.MkDirAll(files.Dirname(path))
+    files.Write(cfg, path)
     return empty
 
 func validateConfig(cfg: Config) error
