@@ -258,6 +258,7 @@ type runCommandArgs
 func parseLocalToolCall(name: string, argsJSON: string) (LocalToolCall, error)
     tool := ParseLocalTool(name) onerr
         return ReadFile{}, error "unknown local tool: {name}"
+
     switch tool
         when LocalTool.ReadFile
             a := jsonpkg.ParseString of readFileArgs from argsJSON onerr return ReadFile{}, error "read_file: bad args: {error}"
@@ -358,8 +359,8 @@ func formatRelativeMatches(stdout: string, sandboxPath: string) string
         return "(no matches)"
     prefix := sandboxPath + "/"
     matches := strpkg.Split(raw, "\n")
-        |> slice.Filter((l: string) bool => l isnt "")
-        |> slice.Map((l: string) string => strpkg.TrimPrefix(l, prefix))
+        |> slice.Filter(l => l isnt "")
+        |> slice.Map(l => strpkg.TrimPrefix(l, prefix))
     return strpkg.Join(matches, "\n")
 
 func localRunCommand(lt: LocalTools, cmd: string, args: list of string) (string, error)
