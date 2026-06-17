@@ -305,7 +305,7 @@ func dispatchLocalTool(lt: LocalTools, name: string, argsJSON: string) (string, 
     call, err := parseLocalToolCall(name, argsJSON)
     if err isnt empty
         return "", err
-    switch call as call
+    switch call
         when ReadFile
             return localReadFile(lt, call.path)
         when WriteFile
