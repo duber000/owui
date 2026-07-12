@@ -1,6 +1,6 @@
 module owui
 
-go 1.26.4
+go 1.27rc2
 
 require (
 	github.com/google/jsonschema-go v0.4.3 // indirect
@@ -13,7 +13,7 @@ require (
 )
 
 require (
-	codeberg.org/kukichalang/kukicha/stdlib v0.52.0
+	codeberg.org/kukichalang/kukicha/stdlib v0.59.1
 	github.com/modelcontextprotocol/go-sdk v1.6.0 // indirect
 	golang.org/x/term v0.43.0 // indirect
 )
