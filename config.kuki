@@ -40,9 +40,9 @@ func loadConfig() Config
         Model: "llama3.1",
         MaxToolRounds: 15,
         MCPServers: make(MCPServers),
-        IPAllowList: make(list of string, 0),
-        IPBlockList: make(list of string, 0),
-        CmdAllowList: make(list of string, 0),
+        IPAllowList: empty list of string,
+        IPBlockList: empty list of string,
+        CmdAllowList: empty list of string,
     }
 
     # Try loading from config file

@@ -34,7 +34,7 @@ type Bridge
 
 func connectBridges(ctx: context.Context, configs: MCPServers) (reference Bridge, error)
     b := reference of Bridge{
-        Servers: make(list of reference BridgeServer, 0),
+        Servers: empty list of reference BridgeServer,
         ToolMap: make(map of string to ToolRoute),
         LocalToolNames: make(StringSet),
     }

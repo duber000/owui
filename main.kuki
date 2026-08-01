@@ -168,16 +168,17 @@ func cmdListModels() error
         return error "Open WebUI API key required"
 
     url := "{strpkg.TrimRight(cfg.WebUIURL, "/")}/api/models"
-    resp := fetch.New(url) |> fetch.BearerAuth(cfg.WebUIAPIKey) |> fetch.Do()
-
-    defer resp.Body.Close()
+    resp := fetch.New(url)
+        |> fetch.BearerAuth(cfg.WebUIAPIKey)
+        |> fetch.Retry(3, 500)
+        |> fetch.Do()
 
     if resp.StatusCode isnt 200
         body := fetch.Bytes(resp) onerr return error "HTTP {resp.StatusCode}"
         return error "HTTP {resp.StatusCode}: {body as string}"
 
     models := ModelsResponse{}
-    jsonpkg.ReadInto(resp.Body, reference of models)
+    resp.Decode(reference of models)
 
     print(color.Bold(color.Cyan("Available models:")))
     for _, m in models.Data
@@ -216,12 +217,15 @@ func cmdHealth() error
     fmt.Print("Open WebUI  ({cfg.WebUIURL})  ") onerr discard
     if cfg.WebUIAPIKey isnt ""
         url := "{strpkg.TrimRight(cfg.WebUIURL, "/")}/api/models"
-        resp, err := fetch.New(url) |> fetch.BearerAuth(cfg.WebUIAPIKey) |> fetch.Do()
+        resp, err := fetch.New(url)
+            |> fetch.BearerAuth(cfg.WebUIAPIKey)
+            |> fetch.Retry(3, 500)
+            |> fetch.Do()
 
         if err isnt empty
             print("{color.BrightRed("x")} {err}")
         else
-            resp.Body.Close()
+            resp.Close()
             if resp.StatusCode equals 200
                 print(color.Green("ok"))
             else
