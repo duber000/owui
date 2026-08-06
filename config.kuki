@@ -11,6 +11,7 @@ import "stdlib/json" as jsonpkg
 type MCPServerConfig
     URL: string as "url"
     APIKey: string as "api_key"
+    Disabled: bool as "disabled"
 
 type MCPServers = map of string to MCPServerConfig
 
@@ -67,7 +68,12 @@ func loadConfig() Config
     cfg.SandboxDir = envOr("OWUI_SANDBOX_DIR", cfg.SandboxDir)
 
     if cfg.TerminalMCPURL isnt ""
-        cfg.MCPServers["terminal"] = MCPServerConfig{URL: cfg.TerminalMCPURL, APIKey: cfg.TerminalMCPAPIKey}
+        # Keep an explicit terminal disable from mcp_servers while applying
+        # the legacy terminal-specific URL and key settings.
+        terminal := cfg.MCPServers["terminal"]
+        terminal.URL = cfg.TerminalMCPURL
+        terminal.APIKey = cfg.TerminalMCPAPIKey
+        cfg.MCPServers["terminal"] = terminal
 
     return cfg
 

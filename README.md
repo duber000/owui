@@ -163,12 +163,14 @@ Additional MCP servers can be added to `~/.config/owui/config.json`:
 {
   "mcp_servers": {
     "terminal": { "url": "http://127.0.0.1:9000/mcp" },
-    "browser":  { "url": "http://127.0.0.1:9001/mcp", "api_key": "sk-..." }
+    "browser":  { "url": "http://127.0.0.1:9001/mcp", "api_key": "sk-..." },
+    "staging":  { "url": "http://127.0.0.1:9002/mcp", "disabled": true }
   }
 }
 ```
 
 Tools from each server are prefixed with the server name (`terminal_execute_command`, `browser_navigate`, etc.) and are available to the LLM automatically.
+Set `"disabled": true` on an MCP server to keep its configuration while preventing owui from connecting to it. `owui health` lists disabled servers without probing them.
 
 ## Prerequisites
 

@@ -40,6 +40,9 @@ func connectBridges(ctx: context.Context, configs: MCPServers) (reference Bridge
     }
 
     for name, cfg in configs
+        if cfg.Disabled
+            continue
+
         session := connectOne(ctx, cfg) onerr
             cli.Error(color.Dim("warning: MCP {name} ({cfg.URL}) connect failed: {error}"))
             continue

@@ -236,6 +236,10 @@ func cmdHealth() error
     # MCP Servers
     for name, mcfg in cfg.MCPServers
         fmt.Print("{name} MCP ({mcfg.URL})  ") onerr discard
+        if mcfg.Disabled
+            print(color.Dim("disabled"))
+            continue
+
         m := make(MCPServers)
         m[name] = mcfg
         bridge, err := connectBridges(ctx, m)

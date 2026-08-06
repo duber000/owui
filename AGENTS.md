@@ -102,9 +102,16 @@ func Greet(name: string, greeting: string = "Hello") string
 
 result := Greet("Alice", greeting: "Hi")
 files.Copy(from: src, to: dst)
+
+quantity := 5.0
+unitPrice := 10.0
+discount := 0.2
+total := calculateTotal(quantity: quantity, unitPrice: unitPrice, discount: discount)
 ```
 
 `name: Type` is the canonical form everywhere a name binds to a type — parameters, receivers, lambda parameters, struct fields, and variant-enum payload fields. Bare `name Type` parses for Go compatibility but warns as deprecated (`kukicha fmt -w` rewrites it). `error "message"` constructs an error value (Kukicha's `errors.New`/`fmt.Errorf`); interpolation works inside the string: `error "bad value {x}"`.
+
+Named-argument types are type-checked against their parameter types (a `f(count: "three")` where `count` is `int` is a compile error, not a silent pass). Keep the value explicit even when it has the same name as its label: write `f(count: count)`.
 
 ### Strings and Interpolation
 
@@ -202,6 +209,12 @@ enum Status
     NotFound = 404
     Error = 500
 
+# An explicit integer raw type declares an internal ordinal sequence.
+enum Phase: int
+    Queued      # 0
+    Running     # 1
+    Complete    # 2
+
 func example()
     status := Status.OK    # dot access → transpiles to StatusOK
 
@@ -220,7 +233,7 @@ enum Bump: string
 b := ParseBump(raw) onerr panic "{error}"   # error names the bad value + the valid set
 ```
 
-- Underlying type (int or string) inferred from the values; all must match. Integer enums warn if no case has value 0; duplicate raw string values are a compile error.
+- Underlying type (int or string) is inferred from explicit values; all values must match. Use `enum Name: int` (or another integer type such as `int64`) for an ordinal sequence with omitted values. Without an explicit integer raw type, every value-enum case needs `= value`. Keep values explicit for database, protocol, and persisted data. Integer enums warn if no case has value 0; duplicate raw string values are a compile error.
 - Auto-generated: a `String()` method, an `All<Name>() list of <Name>` iterator in declaration order (`for s in AllStatus()`; declaring your own `All<Name>` is a compile error), and — for string-valued enums — a package-level `Parse<Name>(s string) (<Name>, error)` that composes with `onerr` and auto-propagation.
 - The `: string` annotation only changes `String()` to return the raw value (`"patch"`) instead of the case name (`"Patch"`); `Parse<Name>`/`All<Name>` are generated either way. It does not make the enum string-valued — the `= "json"` values do that.
 - The enum *type name itself is not a value* — `x := Status` is rejected (use `Status.OK` or a conversion `Status(200)`). Same rule for plain type names and package names (`y := fmt` is rejected).
@@ -569,6 +582,8 @@ func example3()
 
 Inference works in return statements, `onerr` handlers, function arguments, assignments, and typed list elements. Idiomatic Kukicha uses named `type` declarations (`type User \n    name: string`) and untyped literals (`{name: "Alice"}`). Anonymous struct types (`struct { name: string }`) and explicit literals parse for Go compatibility and interop.
 
+Struct literal field values are explicit, including when the local has the same name: `User{name: name, age: age}`. This keeps the source self-contained and mirrors named arguments.
+
 ### Comprehensions
 
 `map of K to V for X in XS [if COND]` is the one comprehension form. It builds a map by computing a key and value for each element — the only collection transformation with no pipe equivalent.
@@ -785,7 +800,7 @@ The stdlib is extracted to `.kukicha/stdlib/` on `kukicha init` — **read the `
 
 **Collections & strings.** `stdlib/slice` (`Filter`/`Map`/`Reject`/`Partition`/`Sort`/`First`/`FindOr`/`Sum`/`Min`/`Max`…), `stdlib/maps`, `stdlib/set`, `stdlib/sort` (`By`/`ByKey`), `stdlib/string` as `strpkg`, `stdlib/regex` (`MustCompile` + `*Compiled` variants), `stdlib/iterator` (lazy `iter.Seq`), `stdlib/cast` (`SmartInt`/`SmartBool`/`IsNil`…), `stdlib/math` (`Abs`/`Round`/`Clamp` — reach for Go's `math` for `Sqrt`/`Pow`/…).
 
-**Data & encoding.** `stdlib/json` as `jsonpkg` (`String`/`PrettyString` for JSON production — prefer over hand-written JSON strings that hit the interpolation rule; `Bytes`/`PrettyBytes` for `[]byte`; naming-aware `Codec` for tag-free JSON — `NewCodec(json.SnakeCase).Omit("Password") |> EncodeWith(v)`; `c |> DecodeStringWith of T from data`), `stdlib/parse` (typed `parse.JSON of T from text`, also YAML/Form/Env/CSV/Int/URL — auto-runs `Validate()`), `stdlib/encoding` (base64/hex), `stdlib/template`, `stdlib/markdown` (CommonMark+GFM, pair with `http.SafeHTML` for untrusted input).
+**Data & encoding.** `stdlib/json` as `jsonpkg` (`String`/`PrettyString` for JSON production — prefer over hand-written JSON strings that hit the interpolation rule; `Bytes`/`PrettyBytes` for `[]byte`; naming-aware `Codec` for tag-free JSON — `NewCodec(json.SnakeCase).Omit("Password") |> EncodeWith(v)`; `c |> DecodeStringWith of T from data`; two decode shapes — `ParseString of T` returns a fresh zero-based value for complete documents, while `ParseStringInto`/`ParseInto`/`ReadInto` decode *into* a pre-populated target so fields absent from the JSON keep their existing values — use the `*Into` family when layering a config file over `Config{...}` defaults), `stdlib/parse` (typed `parse.JSON of T from text`, also YAML/Form/Env/CSV/Int/URL — auto-runs `Validate()`), `stdlib/encoding` (base64/hex), `stdlib/template`, `stdlib/markdown` (CommonMark+GFM, pair with `http.SafeHTML` for untrusted input).
 
 **I/O & files.** `stdlib/files` (`Read`/`Write`/`Copy`/`List`/`Watch`/…), `stdlib/archive` (zip+tar.gz, zip-slip + decompression-bomb safe), `stdlib/sandbox` (filesystem jail for HTTP handlers), `stdlib/shell` (`Output`/`Lines`/`Capture` + `shell.New |> .Dir |> .Env |> .Stdin |> .Output()` builder), `stdlib/blob` (unified S3-compatible object storage client — AWS S3, Cloudflare R2, GCS, MinIO, Backblaze B2, Wasabi; `OpenEnv`/`Put`/`Get`/`ListAll`).
 
