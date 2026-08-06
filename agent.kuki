@@ -5,10 +5,12 @@
 petiole main
 
 import "context"
+import "stdlib/ctx" as ctxpkg
 import "stdlib/json" as jsonpkg
 import "stdlib/llm"
 import "stdlib/llm/chat"
 import "stdlib/string" as strpkg
+import "time"
 
 const defaultSystemPrompt string = "You are a helpful assistant with access to a sandboxed Linux environment via tool calls. You can execute commands, read/write files, search, and manage the filesystem. Use these tools to help the user accomplish their goals. Be concise in your explanations but thorough in your tool usage."
 
@@ -77,6 +79,7 @@ func buildLLMClient(a: reference Agent, messages: list of chat.Message, tools: l
         |> chat.Path("/api/chat/completions")
         |> chat.APIKey(a.Config.WebUIAPIKey)
         |> chat.Messages(messages)
+        |> chat.WithContext(ctxpkg.WithTimeout(ctxpkg.Background(), 5 * time.Minute))
 
     for t in tools
         client = chat.AddTool(client, t.Function.Name, t.Function.Description, t.Function.Parameters)

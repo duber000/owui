@@ -278,7 +278,7 @@ func parseLocalToolCall(name: string, argsJSON: string) (LocalToolCall, error)
             path := a.Path
             if path equals ""
                 path = "."
-            return ListDir{path: path}, empty
+            return ListDir{path:}, empty
         when LocalTool.SearchFiles
             a := jsonpkg.ParseString of searchFilesArgs from argsJSON onerr return ReadFile{}, error "search_files: bad args: {error}"
             if a.Pattern equals ""
