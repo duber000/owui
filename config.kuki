@@ -24,6 +24,7 @@ type Config
     MCPServers: MCPServers as "mcp_servers"
     TerminalMCPURL: string as "terminal_mcp_url"
     TerminalMCPAPIKey: string as "terminal_mcp_api_key"
+    BuiltInTools: bool as "built_in_tools"
     MaxToolRounds: int as "max_tool_rounds"
     SandboxDir: string as "sandbox_dir"
     IPAllowList: list of string as "ip_allow"
@@ -39,6 +40,7 @@ func loadConfig() Config
         WebUIURL: "http://localhost:3000",
         TerminalMCPURL: "http://127.0.0.1:9000/mcp",
         Model: "llama3.1",
+        BuiltInTools: true,
         MaxToolRounds: 15,
         MCPServers: make(MCPServers),
         IPAllowList: empty list of string,

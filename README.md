@@ -52,6 +52,54 @@ owui models    # see what LLMs are available
 
 Config is loaded with priority: **env vars > `~/.config/owui/config.json` > defaults**.
 
+### Config file options
+
+`~/.config/owui/config.json` accepts the following options. Environment variables
+override only the fields listed in the table above.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `webui_url` | `http://localhost:3000` | Open WebUI base URL. |
+| `webui_api_key` | | Open WebUI API key. Required to run an agent. |
+| `model` | `llama3.1` | Model sent to Open WebUI. |
+| `terminal_mcp_url` | `http://127.0.0.1:9000/mcp` | URL for the legacy `terminal` MCP server entry. |
+| `terminal_mcp_api_key` | | API key for the legacy `terminal` MCP server entry. |
+| `mcp_servers` | `{}` | Named MCP server configurations. Each server accepts `url`, optional `api_key`, and optional `disabled`. |
+| `built_in_tools` | `true` | Enables the built-in sandboxed file and command tools. Set to `false` to expose MCP tools only. |
+| `max_tool_rounds` | `15` | Maximum LLM tool-call rounds per request. |
+| `sandbox_dir` | current working directory | Sandbox root for built-in file and command tools. |
+| `cmd_allow` | built-in allowlist | Commands permitted through `run_command`. Replaces the default allowlist when non-empty. |
+| `ip_allow` | `[]` | Allowed IP/CIDR ranges for the built-in tools' network guard. |
+| `ip_block` | `[]` | Blocked IP/CIDR ranges for the built-in tools' network guard. Ignored when `ip_allow` is set. |
+
+Example:
+
+```json
+{
+  "webui_url": "http://localhost:3000",
+  "webui_api_key": "sk-...",
+  "model": "llama3.1",
+  "built_in_tools": true,
+  "max_tool_rounds": 15,
+  "sandbox_dir": "/path/to/workdir",
+  "cmd_allow": ["git", "grep", "ls", "mkdir", "pwd"],
+  "ip_allow": ["10.0.0.0/8"],
+  "mcp_servers": {
+    "terminal": {
+      "url": "http://127.0.0.1:9000/mcp"
+    },
+    "browser": {
+      "url": "http://127.0.0.1:9001/mcp",
+      "api_key": "sk-..."
+    },
+    "staging": {
+      "url": "http://127.0.0.1:9002/mcp",
+      "disabled": true
+    }
+  }
+}
+```
+
 ## Usage
 
 ### Agent mode (LLM + tools)
@@ -148,6 +196,14 @@ local_tools.kuki   Built-in sandboxed tools — no MCP server required
 | `run_command` | Run an allowlisted command in the sandbox directory |
 
 Default command allowlist: `bd cat cp date diff echo find git grep head ls mkdir mv pwd rm sort tail touch uniq wc which`. Override with `cmd_allow` in the config file.
+
+Set `"built_in_tools": false` in `~/.config/owui/config.json` to disable all built-in tools. MCP-provided tools remain available:
+
+```json
+{
+  "built_in_tools": false
+}
+```
 
 ### Security
 

@@ -18,7 +18,7 @@ import "stdlib/json" as jsonpkg
 import "stdlib/llm/chat"
 import "stdlib/string" as strpkg
 
-var version string = "dev"
+var version: string = "dev"
 
 # ---- Entrypoint ----
 
@@ -105,8 +105,9 @@ func cmdRun(positional: list of string, flagModel: string, flagChat: bool, flagR
 func buildAgent(ctx: context.Context, cfg: Config, flagSystem: string) (reference Agent, error)
     bridge := connectBridges(ctx, cfg.MCPServers) onerr return empty, error "connecting to MCP servers: {error}"
 
-    registerLocalTools(bridge, cfg) onerr
-        cli.Error(color.Dim("warning: local tools unavailable: {error}"))
+    if cfg.BuiltInTools
+        registerLocalTools(bridge, cfg) onerr
+            cli.Error(color.Dim("warning: local tools unavailable: {error}"))
 
     if isTTYErr()
         sandboxLabel := if cfg.SandboxDir isnt "" then cfg.SandboxDir else "cwd"
@@ -196,7 +197,8 @@ func cmdListTools(showSchema: bool) error
     bridge := connectBridges(ctx, cfg.MCPServers) onerr return
     defer closeBridges(bridge)
 
-    registerLocalTools(bridge, cfg) onerr return
+    if cfg.BuiltInTools
+        registerLocalTools(bridge, cfg) onerr return
 
     print(color.Bold(color.Yellow("Available tools:")))
     for _, t in bridgeTools(bridge)
