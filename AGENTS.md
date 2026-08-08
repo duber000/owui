@@ -73,7 +73,7 @@ func main()
 
 ```kukicha
 const PI = 3.14159
-const MaxRetries int = 5
+const MaxRetries: int = 5
 ```
 
 `const` works at the top level or inside a function body (for tunables you want visually flagged as immutable). For a group of related constants, use `enum` instead (see [Enums](#enums)) — the parenthesized `const ( ... )` form and `iota` are Go-only.
@@ -85,8 +85,8 @@ const MaxRetries int = 5
 count := 42           # inferred type
 count = 100           # reassignment
 
-var p reference int   # zero-value declaration — error: must initialize or use optional
-var xs list of string
+var p: reference int   # zero-value declaration — error: must initialize or use optional
+var xs: list of string
 
 func Add(a: int, b: int) int
     return a + b
@@ -411,12 +411,13 @@ resp := fetch.Get(url) |> fetch.CheckStatus() onerr panic "{error}"
 
 # Piped switch — expression-only (RHS of assignment or return, never a bare
 # statement; use statement-form `switch x` for side-effect dispatch).
-# Arms yield their value with `return`
+# A single-expression arm yields its value bare; `return` is required for
+# multi-statement and multi-value arms.
 role := user.Role |> switch
     when "admin"
-        return "admin"
+        "admin"
     default
-        return "user"
+        "user"
 
 # On a variant enum — exhaustiveness-checked; `as v` names the piped value
 area := shape |> switch as v
@@ -601,8 +602,8 @@ func comprehensionExample(users: list of User)
 
     # map of K to V for X in XS if COND  (filtered)
     activeByID := map of u.id to u.name for u in users if u.active
-    _ = byID
-    _ = activeByID
+    print(byID)
+    print(activeByID)
 ```
 
 For filter+map over a slice (the former `list of EXPR for X in XS`), use a pipe chain — it reads left-to-right and the result is typed `list of T`, not `list of any`:
@@ -616,9 +617,9 @@ func pipeExample(users: list of User)
     names := users |> slice.Map((u) => u.name)
     activeNames := users |> slice.Filter((u) => u.active) |> slice.Map((u) => u.name)
     uniqueNames := set.From(users |> slice.Map((u) => u.name))
-    _ = names
-    _ = activeNames
-    _ = uniqueNames
+    print(names)
+    print(activeNames)
+    print(uniqueNames)
 ```
 
 The map-comprehension desugar reuses the generic stdlib — `map of K to V for X in XS` becomes `slice.ToMap(XS, (X) => K, (X) => V)`, so the result is `map of K to V`, not `map of any to any`. `stdlib/slice` is auto-imported; you don't need an explicit `import "stdlib/slice"` to use a map comprehension. The formatter prints the desugared `slice.ToMap` form, not the comprehension syntax — a known tradeoff of parser-level desugar.
@@ -704,7 +705,8 @@ defer resource.Close()
 
 # Block form (emits defer func() { ... }())
 defer
-    if r := recover(); r isnt empty
+    r := recover()
+    if r isnt empty
         tx.Rollback()
         panic(r)
 ```
@@ -835,13 +837,13 @@ c := chat.New("openai:gpt-4o-mini")
     |> chat.User("Weather in Paris?")
 comp := c |> chat.SendRaw onerr panic "{error}"
 if chat.HasToolCalls(comp)
-    handlers := make(map of string to func(string) string)
+    handlers := empty map of string to func(string) string
     handlers["get_weather"] = (args: string) => "Sunny, 22°C"
     c = chat.ExecuteToolCalls(c, comp, handlers) onerr panic "{error}"
 
 # MCP server tool with typed args
 mcp.Tool of PriceArgs(server, "get_price", "Get stock price", schema,
-    func(args: PriceArgs) (any, error)
+    (args: PriceArgs) =>
         return lookupPrice(args.Symbol), empty)
 
 # ToolWithOpts — annotation hints + enum-restricted property
@@ -850,7 +852,7 @@ schema2 := mcp.Schema(list of mcp.SchemaProperty{
 }) |> mcp.Required(list of string{"direction"})
 mcp.ToolWithOpts of SortArgs(server, "sort_items", "Sort a list", schema2,
     mcp.ToolOpts{ReadOnly: true, Title: "Sort Items"},
-    func(args: SortArgs) (any, error)
+    (args: SortArgs) =>
         return sortItems(args.Direction), empty)
 ```
 
