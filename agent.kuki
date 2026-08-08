@@ -12,7 +12,7 @@ import "stdlib/llm/chat"
 import "stdlib/string" as strpkg
 import "time"
 
-const defaultSystemPrompt string = "You are a helpful assistant with access to a sandboxed Linux environment via tool calls. You can execute commands, read/write files, search, and manage the filesystem. Use these tools to help the user accomplish their goals. Be concise in your explanations but thorough in your tool usage."
+const defaultSystemPrompt: string = "You are a helpful assistant with access to a sandboxed Linux environment via tool calls. You can execute commands, read/write files, search, and manage the filesystem. Use these tools to help the user accomplish their goals. Be concise in your explanations but thorough in your tool usage."
 
 type Agent
     Bridge: reference Bridge
@@ -98,8 +98,16 @@ func handleToolCalls(ctx: context.Context, a: reference Agent, messages: list of
         if a.OnToolCall isnt empty
             a.OnToolCall(tc.Function.Name, tc.Function.Arguments)
 
-        toolResult := callBridgeTool(ctx, a.Bridge, tc.Function.Name, tc.Function.Arguments) onerr
-            toolResult = "ERROR: {error}"
+        # Keep the tool's output when it fails: run_command (and MCP tools)
+        # return both a result and an error, and the result often carries the
+        # diagnostics the model needs (e.g. kukicha check exits non-zero but
+        # prints the full diagnostic list to stdout/stderr).
+        toolResult, toolErr := callBridgeTool(ctx, a.Bridge, tc.Function.Name, tc.Function.Arguments)
+        if toolErr isnt empty
+            if toolResult isnt ""
+                toolResult = "{toolResult}\nERROR: {toolErr}"
+            else
+                toolResult = "ERROR: {toolErr}"
 
         if a.OnToolResult isnt empty
             a.OnToolResult(tc.Function.Name, strpkg.Truncate(toolResult, 500))
