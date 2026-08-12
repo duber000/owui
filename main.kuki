@@ -29,6 +29,11 @@ func main()
         |> cli.BoolFlag("chat", "Interactive chat mode", false)
         |> cli.Short("c")
         |> cli.BoolFlag("raw", "Raw output (no streaming indicators)", false)
+        |> cli.BoolFlag(
+            "tools",
+            "Always print tool indicators to stderr, even when stdout is not a terminal (headless callers like foamy)",
+            false,
+        )
         |> cli.StringFlag("system", "System prompt override", "")
         |> cli.Short("S")
         |> cli.BoolFlag("schema", "Show tool schemas", false)
@@ -39,6 +44,7 @@ func main()
     flagModel := cli.GetString(parsed, "model")
     flagChat := cli.GetBool(parsed, "chat")
     flagRaw := cli.GetBool(parsed, "raw")
+    flagTools := cli.GetBool(parsed, "tools")
     flagSystem := cli.GetString(parsed, "system")
     flagSchema := cli.GetBool(parsed, "schema")
     positional := cli.GetRest(parsed, "args")
@@ -52,7 +58,7 @@ func main()
             return
 
     # Default: agent mode
-    cmdRun(positional, flagModel, flagChat, flagRaw, flagSystem) onerr
+    cmdRun(positional, flagModel, flagChat, flagRaw, flagTools, flagSystem) onerr
         cli.Fatal(color.BrightRed("error: {error}"))
 
 enum Subcommand: string
@@ -80,7 +86,7 @@ func dispatchSubcommand(cmd: string, flagSchema: bool) (bool, error)
 
 # ---- Agent mode ----
 
-func cmdRun(positional: list of string, flagModel: string, flagChat: bool, flagRaw: bool, flagSystem: string) error
+func cmdRun(positional: list of string, flagModel: string, flagChat: bool, flagRaw: bool, flagTools: bool, flagSystem: string) error
     cfg := loadConfig()
     if flagModel isnt ""
         cfg.Model = flagModel
@@ -100,7 +106,7 @@ func cmdRun(positional: list of string, flagModel: string, flagChat: bool, flagR
     if prompt equals ""
         return error "no prompt provided — use -c for interactive chat"
 
-    return runOneShot(ctx, a, prompt, flagRaw)
+    return runOneShot(ctx, a, prompt, flagRaw, flagTools)
 
 func buildAgent(ctx: context.Context, cfg: Config, flagSystem: string) (reference Agent, error)
     bridge := connectBridges(ctx, cfg.MCPServers) onerr return empty, error "connecting to MCP servers: {error}"
@@ -132,10 +138,14 @@ func buildAgent(ctx: context.Context, cfg: Config, flagSystem: string) (referenc
 
     return a, empty
 
-func runOneShot(ctx: context.Context, a: reference Agent, prompt: string, flagRaw: bool) error
+func runOneShot(ctx: context.Context, a: reference Agent, prompt: string, flagRaw: bool, flagTools: bool) error
     isTTY := isTTYOut()
 
-    if isTTY
+    # Tool indicators go to stderr. Interactive runs print them whenever
+    # stdout is a terminal; --tools forces them unconditionally so
+    # headless callers (foamy's /steep heartbeat) can parse a live status
+    # out of the pipe.
+    if isTTY or flagTools
         setToolCallbacks(a, "", 80, 120)
 
     a.OnText = func(chunk: string)
@@ -149,7 +159,7 @@ func runOneShot(ctx: context.Context, a: reference Agent, prompt: string, flagRa
     else
         fmt.Print(result.Content) onerr discard
 
-    if isTTY
+    if isTTY or flagTools
         cli.Error(color.Dim("({result.Rounds} tool rounds)"))
 
     return empty
