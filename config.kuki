@@ -88,7 +88,7 @@ func envOr(name: string, defaultValue: string) string
 func saveConfig(cfg: Config) error
     path := defaultConfigPath()
     files.MkDirAll(files.Dirname(path))
-    files.Write(cfg, path)
+    files.WriteJSON(cfg, path)
     return empty
 
 func validateConfig(cfg: Config) error
