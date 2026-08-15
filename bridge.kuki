@@ -135,7 +135,7 @@ func findServer(b: reference Bridge, name: string) reference BridgeServer
 func invokeMCPTool(ctx: context.Context, s: reference BridgeServer, name: string, argsJSON: string) (string, error)
     args := make(llm.JSONObject)
     if argsJSON isnt "" and argsJSON isnt "{}"
-        args = jsonpkg.ParseString of llm.JSONObject from argsJSON onerr return "", error "invalid tool arguments: {error}"
+        args = jsonpkg.Parse of llm.JSONObject from argsJSON onerr return "", error "invalid tool arguments: {error}"
 
     result := mcp.CallTool(ctx, s.Session, name, args) onerr return "", error "{error}"
 

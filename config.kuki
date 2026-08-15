@@ -54,7 +54,7 @@ func loadConfig() Config
         # Decode into the existing cfg rather than replacing it, so fields
         # absent from the JSON file keep their in-code defaults instead of
         # being zeroed. Env vars still override on top below.
-        jsonpkg.ParseStringInto(data, reference of cfg) onerr panic "invalid config.json: {error}"
+        jsonpkg.ParseInto(data, reference of cfg) onerr panic "invalid config.json: {error}"
 
     if cfg.MCPServers equals empty
         cfg.MCPServers = make(MCPServers)

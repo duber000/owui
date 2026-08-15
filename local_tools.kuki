@@ -261,12 +261,12 @@ func parseLocalToolCall(name: string, argsJSON: string) (LocalToolCall, error)
 
     switch tool
         when LocalTool.ReadFile
-            a := jsonpkg.ParseString of readFileArgs from argsJSON onerr return ReadFile{}, error "read_file: bad args: {error}"
+            a := jsonpkg.Parse of readFileArgs from argsJSON onerr return ReadFile{}, error "read_file: bad args: {error}"
             if a.Path equals ""
                 return ReadFile{}, error "read_file: missing path"
             return ReadFile{path: a.Path}, empty
         when LocalTool.WriteFile
-            a := jsonpkg.ParseString of writeFileArgs from argsJSON onerr return ReadFile{}, error "write_file: bad args: {error}"
+            a := jsonpkg.Parse of writeFileArgs from argsJSON onerr return ReadFile{}, error "write_file: bad args: {error}"
             if a.Path equals ""
                 return ReadFile{}, error "write_file: missing path"
             return WriteFile{path: a.Path, content: a.Content}, empty
@@ -274,18 +274,18 @@ func parseLocalToolCall(name: string, argsJSON: string) (LocalToolCall, error)
             # list_dir tolerates empty argsJSON — defaults to "."
             a := listDirArgs{}
             if argsJSON isnt "" and argsJSON isnt "{}"
-                a = jsonpkg.ParseString of listDirArgs from argsJSON onerr return ReadFile{}, error "list_dir: bad args: {error}"
+                a = jsonpkg.Parse of listDirArgs from argsJSON onerr return ReadFile{}, error "list_dir: bad args: {error}"
             path := a.Path
             if path equals ""
                 path = "."
             return ListDir{path: path}, empty
         when LocalTool.SearchFiles
-            a := jsonpkg.ParseString of searchFilesArgs from argsJSON onerr return ReadFile{}, error "search_files: bad args: {error}"
+            a := jsonpkg.Parse of searchFilesArgs from argsJSON onerr return ReadFile{}, error "search_files: bad args: {error}"
             if a.Pattern equals ""
                 return ReadFile{}, error "search_files: missing pattern"
             return SearchFiles{pattern: a.Pattern}, empty
         when LocalTool.GrepFiles
-            a := jsonpkg.ParseString of grepFilesArgs from argsJSON onerr return ReadFile{}, error "grep_files: bad args: {error}"
+            a := jsonpkg.Parse of grepFilesArgs from argsJSON onerr return ReadFile{}, error "grep_files: bad args: {error}"
             if a.Pattern equals ""
                 return ReadFile{}, error "grep_files: missing pattern"
             searchPath := a.Path
@@ -293,7 +293,7 @@ func parseLocalToolCall(name: string, argsJSON: string) (LocalToolCall, error)
                 searchPath = "."
             return GrepFiles{pattern: a.Pattern, path: searchPath}, empty
         when LocalTool.RunCommand
-            a := jsonpkg.ParseString of runCommandArgs from argsJSON onerr return ReadFile{}, error "run_command: bad args: {error}"
+            a := jsonpkg.Parse of runCommandArgs from argsJSON onerr return ReadFile{}, error "run_command: bad args: {error}"
             if a.Cmd equals ""
                 return ReadFile{}, error "run_command: missing cmd"
             return RunCommand{cmd: a.Cmd, args: a.Args}, empty
