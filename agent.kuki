@@ -20,6 +20,7 @@ type Agent
     SystemPrompt: string
     MaxRounds: int
     OnText: func(string)
+    OnThinking: func(string)
     OnToolCall: func(string, string)
     OnToolResult: func(string, string)
 
@@ -44,8 +45,11 @@ func runAgent(ctx: context.Context, a: reference Agent, userPrompt: string, hist
         events, collect := chat.SendStream(client)
 
         for evt in events
-            if a.OnText isnt empty
-                if evt is llm.Delta as d
+            if evt is llm.ThinkingDelta as t
+                if a.OnThinking isnt empty
+                    a.OnThinking(t.Body)
+            else if evt is llm.Delta as d
+                if a.OnText isnt empty
                     a.OnText(d.Body)
 
         comp, sErr := collect()
@@ -73,13 +77,19 @@ func initMessages(a: reference Agent, userPrompt: string, history: list of chat.
     return append(messages, chat.Message{Role: "user", Content: userPrompt})
 
 func buildLLMClient(a: reference Agent, messages: list of chat.Message, tools: list of chat.Tool) chat.Client
+    # Qwen3.6 on Hetzner has a 262,144-token context window (256K). Setting
+    # max_tokens to 131072 (128K) leaves 128K for the prompt and gives the
+    # model ample room to reason before producing content. Without a generous
+    # budget, reasoning models exhaust small limits on thinking alone and
+    # return content="" with finish_reason=length.
     client := chat.New("")
         |> chat.Model(a.Config.Model)
-        |> chat.BaseURL(a.Config.WebUIURL)
-        |> chat.Path("/api/chat/completions")
-        |> chat.APIKey(a.Config.WebUIAPIKey)
+        |> chat.BaseURL(resolveBaseURL(a.Config))
+        |> chat.Path(resolveChatPath(a.Config))
+        |> chat.APIKey(resolveAPIKey(a.Config))
         |> chat.Messages(messages)
-        |> chat.WithContext(ctxpkg.WithTimeout(ctxpkg.Background(), 5 * time.Minute))
+        |> chat.MaxTokens(131072)
+        |> chat.WithContext(ctxpkg.WithTimeout(ctxpkg.Background(), 30 * time.Minute))
 
     for t in tools
         client = chat.AddTool(client, t.Function.Name, t.Function.Description, t.Function.Parameters)

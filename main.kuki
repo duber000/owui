@@ -152,6 +152,13 @@ func runOneShot(ctx: context.Context, a: reference Agent, prompt: string, flagRa
         if isTTY and not flagRaw
             fmt.Print(chunk) onerr discard
 
+    # Reasoning models (e.g. Qwen3.6, glm-5.2) emit thinking tokens before
+    # the final answer. Surface them on stderr so the user sees activity
+    # instead of an apparent hang, without polluting stdout for pipes.
+    if isTTY or flagTools
+        a.OnThinking = func(chunk: string)
+            cli.Error(color.Dim(chunk))
+
     result := runAgent(ctx, a, prompt, empty list of chat.Message) onerr return
 
     if isTTY and not flagRaw
@@ -175,12 +182,12 @@ type ModelsResponse
 
 func cmdListModels() error
     cfg := loadConfig()
-    if cfg.WebUIAPIKey equals ""
-        return error "Open WebUI API key required"
+    if resolveAPIKey(cfg) equals ""
+        return error "LLM API key required"
 
-    url := "{strpkg.TrimRight(cfg.WebUIURL, "/")}/api/models"
+    url := "{resolveBaseURL(cfg)}{resolveModelsPath(cfg)}"
     resp := fetch.New(url)
-        |> fetch.BearerAuth(cfg.WebUIAPIKey)
+        |> fetch.BearerAuth(resolveAPIKey(cfg))
         |> fetch.Retry(3, 500)
         |> fetch.Do()
 
@@ -225,25 +232,27 @@ func cmdHealth() error
     cfg := loadConfig()
     ctx := context.Background()
 
-    # Open WebUI
-    fmt.Print("Open WebUI  ({cfg.WebUIURL})  ") onerr discard
-    if cfg.WebUIAPIKey isnt ""
-        url := "{strpkg.TrimRight(cfg.WebUIURL, "/")}/api/models"
-        resp, err := fetch.New(url)
-            |> fetch.BearerAuth(cfg.WebUIAPIKey)
-            |> fetch.Retry(3, 500)
-            |> fetch.Do()
+    # LLM endpoint
+    baseURL := resolveBaseURL(cfg)
+    fmt.Print("LLM  ({baseURL})  ") onerr discard
+    apiKey := resolveAPIKey(cfg)
+    url := "{baseURL}{resolveModelsPath(cfg)}"
+    # Ollama and custom providers may run without an API key — probe the
+    # models endpoint without auth rather than reporting "no API key".
+    req := fetch.New(url)
+    if apiKey isnt ""
+        req = fetch.BearerAuth(req, apiKey)
+    req = fetch.Retry(req, 3, 500)
+    resp, err := fetch.Do(req)
 
-        if err isnt empty
-            print("{color.BrightRed("x")} {err}")
-        else
-            resp.Close()
-            if resp.StatusCode equals 200
-                print(color.Green("ok"))
-            else
-                print("{color.BrightRed("x")} HTTP {resp.StatusCode}")
+    if err isnt empty
+        print("{color.BrightRed("x")} {err}")
     else
-        print("{color.BrightRed("x")} no API key")
+        resp.Close()
+        if resp.StatusCode equals 200
+            print(color.Green("ok"))
+        else
+            print("{color.BrightRed("x")} HTTP {resp.StatusCode}")
 
     # MCP Servers
     for name, mcfg in cfg.MCPServers
@@ -267,10 +276,12 @@ func cmdConfigure() error
     cfg := loadConfig()
 
     f := input.NewForm()
-    f.Text("webuiURL", "Open WebUI URL [{cfg.WebUIURL}]: ")
-    f.Default("webuiURL", cfg.WebUIURL)
-    f.Text("webuiKey", "Open WebUI API Key [{maskKey(cfg.WebUIAPIKey)}]: ")
-    f.Default("webuiKey", cfg.WebUIAPIKey)
+    f.Text("provider", "Provider [openwebui|hetzner|openai|ollama|custom] [{cfg.Provider}]: ")
+    f.Default("provider", cfg.Provider)
+    f.Text("baseURL", "LLM base URL [{resolveBaseURL(cfg)}]: ")
+    f.Default("baseURL", resolveBaseURL(cfg))
+    f.Text("apiKey", "LLM API Key [{maskKey(resolveAPIKey(cfg))}]: ")
+    f.Default("apiKey", resolveAPIKey(cfg))
     f.Text("model", "Model [{cfg.Model}]: ")
     f.Default("model", cfg.Model)
     f.Text("mcpURL", "terminal MCP URL [{cfg.TerminalMCPURL}]: ")
@@ -282,8 +293,9 @@ func cmdConfigure() error
 
     f.Run()
 
-    cfg.WebUIURL = f.String("webuiURL")
-    cfg.WebUIAPIKey = f.String("webuiKey")
+    cfg.Provider = f.String("provider")
+    cfg.LLMBaseURL = f.String("baseURL")
+    cfg.LLMAPIKey = f.String("apiKey")
     cfg.Model = f.String("model")
     cfg.TerminalMCPURL = f.String("mcpURL")
     cfg.TerminalMCPAPIKey = f.String("mcpKey")
@@ -314,9 +326,14 @@ func runChat(ctx: context.Context, a: reference Agent, initialPrompt: string)
 
         setToolCallbacks(a, "  ", 60, 80)
 
-        # Stream response chunks; print the model prefix lazily on the first chunk
-        # so tool-call output (stderr) appears before the response line starts.
+        # Stream response chunks; print the model prefix lazily on the first
+        # chunk so tool-call output (stderr) appears before the response line.
+        # Thinking tokens (reasoning models) go to stderr dimmed so the
+        # terminal shows activity during long thinking phases.
         firstChunk := true
+        a.OnThinking = func(chunk: string)
+            cli.Error(color.Dim(chunk))
+
         a.OnText = func(chunk: string)
             if firstChunk
                 fmt.Print("\n{color.Dim(a.Config.Model)}  ") onerr discard

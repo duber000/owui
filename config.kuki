@@ -1,5 +1,12 @@
 # Config — loads settings from file + environment variables
-# Priority: env vars > config file > defaults
+# Priority: env vars > config file > provider preset > defaults
+#
+# LLM endpoints are resolved through a provider preset so owui can target
+# Open WebUI, Hetzner Inference, OpenAI, Ollama, or any OpenAI-compatible
+# endpoint without code changes. Each preset fills in base_url, chat_path,
+# models_path, and the conventional API-key env var; any of those can be
+# overridden individually in config or env. Legacy webui_url/webui_api_key
+# fields are kept as aliases for backward compatibility.
 
 petiole main
 
@@ -7,6 +14,7 @@ import "os"
 import "stdlib/env"
 import "stdlib/files"
 import "stdlib/json" as jsonpkg
+import "stdlib/string" as strpkg
 
 type MCPServerConfig
     URL: string as "url"
@@ -17,7 +25,70 @@ type MCPServers = map of string to MCPServerConfig
 
 type StringSet = map of string to bool
 
+# Provider is the enum of recognised LLM backends. `Custom` leaves all
+# endpoint fields for the user and disables the API-key requirement.
+enum Provider: string
+    OpenWebUI = "openwebui"
+    Hetzner = "hetzner"
+    OpenAI = "openai"
+    Ollama = "ollama"
+    Custom = "custom"
+
+# ProviderPreset carries the endpoint shape for one provider. Empty strings
+# mean "no preset for this field" — the caller falls back to overrides or
+# defaults. APIKeyEnv names the conventional env var the provider reads its
+# key from (empty = no conventional var).
+type ProviderPreset
+    BaseURL: string
+    ChatPath: string
+    ModelsPath: string
+    APIKeyEnv: string
+
+func providerPreset(p: Provider) ProviderPreset
+    switch p
+        when Provider.OpenWebUI
+            return ProviderPreset{
+                BaseURL: "http://localhost:3000",
+                ChatPath: "/api/chat/completions",
+                ModelsPath: "/api/models",
+                APIKeyEnv: "",
+            }
+        when Provider.Hetzner
+            return ProviderPreset{
+                BaseURL: "https://inference.hetzner.com/api/v1",
+                ChatPath: "/chat/completions",
+                ModelsPath: "/models",
+                APIKeyEnv: "HETZNER_VLLM_API_KEY",
+            }
+        when Provider.OpenAI
+            return ProviderPreset{
+                BaseURL: "https://api.openai.com/v1",
+                ChatPath: "/chat/completions",
+                ModelsPath: "/models",
+                APIKeyEnv: "OPENAI_API_KEY",
+            }
+        when Provider.Ollama
+            return ProviderPreset{
+                BaseURL: "http://localhost:11434/v1",
+                ChatPath: "/chat/completions",
+                ModelsPath: "/models",
+                APIKeyEnv: "",
+            }
+        when Provider.Custom
+            return ProviderPreset{}
+    return ProviderPreset{}
+
 type Config
+    # Provider selects the endpoint preset. Empty defaults to openwebui for
+    # backward compatibility with existing config files.
+    Provider: string as "provider"
+    # Generic LLM endpoint overrides — each takes precedence over the preset.
+    LLMBaseURL: string as "llm_base_url"
+    LLMAPIKey: string as "llm_api_key"
+    ChatPath: string as "chat_path"
+    ModelsPath: string as "models_path"
+    # Legacy aliases kept for backward compatibility. webui_url overrides the
+    # preset base URL; webui_api_key overrides the resolved API key.
     WebUIURL: string as "webui_url"
     WebUIAPIKey: string as "webui_api_key"
     Model: string as "model"
@@ -37,7 +108,7 @@ func defaultConfigPath() string
 
 func loadConfig() Config
     cfg := Config{
-        WebUIURL: "http://localhost:3000",
+        Provider: Provider.OpenWebUI.String(),
         TerminalMCPURL: "http://127.0.0.1:9000/mcp",
         Model: "llama3.1",
         BuiltInTools: true,
@@ -62,6 +133,12 @@ func loadConfig() Config
     # Environment variables override file settings.
     # envOr keeps the prior value when the env var is unset *or* set to ""
     # so an explicit empty string can't accidentally clobber a configured value.
+    cfg.Provider = envOr("OWUI_PROVIDER", cfg.Provider)
+    cfg.LLMBaseURL = envOr("OWUI_LLM_BASE_URL", cfg.LLMBaseURL)
+    cfg.LLMAPIKey = envOr("OWUI_LLM_API_KEY", cfg.LLMAPIKey)
+    cfg.ChatPath = envOr("OWUI_CHAT_PATH", cfg.ChatPath)
+    cfg.ModelsPath = envOr("OWUI_MODELS_PATH", cfg.ModelsPath)
+    # Legacy env vars still work.
     cfg.WebUIURL = envOr("OWUI_WEBUI_URL", cfg.WebUIURL)
     cfg.WebUIAPIKey = envOr("OWUI_WEBUI_API_KEY", cfg.WebUIAPIKey)
     cfg.Model = envOr("OWUI_MODEL", cfg.Model)
@@ -85,6 +162,54 @@ func envOr(name: string, defaultValue: string) string
         return v
     return defaultValue
 
+# resolveProvider parses cfg.Provider, falling back to OpenWebUI on a bad
+# value so a typo in config never silently breaks the agent.
+func resolveProvider(cfg: Config) Provider
+    if cfg.Provider equals ""
+        return Provider.OpenWebUI
+    p := ParseProvider(cfg.Provider) onerr return Provider.OpenWebUI
+    return p
+
+# resolveBaseURL picks the effective LLM base URL: explicit override >
+# legacy webui_url (only for the openwebui provider) > provider preset.
+# The legacy field is scoped to openwebui so switching `provider` to hetzner
+# etc. doesn't have to fight a stale webui_url left in an old config file.
+func resolveBaseURL(cfg: Config) string
+    if cfg.LLMBaseURL isnt ""
+        return strpkg.TrimRight(cfg.LLMBaseURL, "/")
+    p := resolveProvider(cfg)
+    if p equals Provider.OpenWebUI and cfg.WebUIURL isnt ""
+        return strpkg.TrimRight(cfg.WebUIURL, "/")
+    return strpkg.TrimRight(providerPreset(p).BaseURL, "/")
+
+# resolveChatPath picks the effective chat-completions path: explicit
+# override > provider preset.
+func resolveChatPath(cfg: Config) string
+    if cfg.ChatPath isnt ""
+        return cfg.ChatPath
+    return providerPreset(resolveProvider(cfg)).ChatPath
+
+# resolveModelsPath picks the effective models-list path: explicit override
+# > provider preset.
+func resolveModelsPath(cfg: Config) string
+    if cfg.ModelsPath isnt ""
+        return cfg.ModelsPath
+    return providerPreset(resolveProvider(cfg)).ModelsPath
+
+# resolveAPIKey picks the effective LLM API key: explicit llm_api_key >
+# legacy webui_api_key (only for the openwebui provider) > provider's
+# conventional env var.
+func resolveAPIKey(cfg: Config) string
+    if cfg.LLMAPIKey isnt ""
+        return cfg.LLMAPIKey
+    p := resolveProvider(cfg)
+    if p equals Provider.OpenWebUI and cfg.WebUIAPIKey isnt ""
+        return cfg.WebUIAPIKey
+    envName := providerPreset(p).APIKeyEnv
+    if envName isnt ""
+        return env.GetOr(envName, "")
+    return ""
+
 func saveConfig(cfg: Config) error
     path := defaultConfigPath()
     files.MkDirAll(files.Dirname(path))
@@ -92,6 +217,11 @@ func saveConfig(cfg: Config) error
     return empty
 
 func validateConfig(cfg: Config) error
-    if cfg.WebUIAPIKey equals ""
-        return error "Open WebUI API key required: set OWUI_WEBUI_API_KEY or run `owui configure`"
+    # Ollama runs locally without an API key; custom providers may too.
+    if resolveProvider(cfg) equals Provider.Ollama
+        return empty
+    if resolveProvider(cfg) equals Provider.Custom
+        return empty
+    if resolveAPIKey(cfg) equals ""
+        return error "LLM API key required: set OWUI_LLM_API_KEY (or the provider's env var), or run `owui configure`"
     return empty

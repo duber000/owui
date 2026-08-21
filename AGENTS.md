@@ -170,7 +170,26 @@ func MergeUsers(primary: UserMap, secondary: UserMap, overrides: list of UserMap
 # Interface — methods listed in an indented block (not `type X interface { }`)
 interface Validatable
     Validate() list of FieldError
+
+# Embedded interfaces — compose with Go interfaces or local ones.
+# A bare (possibly qualified) type name on its own line embeds that interface.
+interface ReadCloser2
+    io.Reader
+    Closer
+    Flush() int
 ```
+
+Interfaces are Go interfaces with Kukicha spelling: structural satisfaction
+(no `impl` declarations), `v is Iface as x` narrowing, and use as generic
+constraints (`of T: Stringer`). The semantic pass checks declared method
+calls on interface-typed values and verifies same-package concrete types
+implement same-package interfaces at assign/pass/return sites — a missing
+method or signature mismatch surfaces at `kukicha check`, not `go build`.
+Methods promoted through embedded interfaces and cross-package concrete
+types defer to the Go compiler. Variant enums are the closed-set story
+(sum types); interfaces are the open-method-set story. The Go-style
+`type X interface { ... }` declaration is rejected with a hint pointing at
+the Kukicha form (or `kukicha-blend` for bulk conversion).
 
 ### Optional references
 
@@ -862,15 +881,15 @@ mcp.ToolWithOpts of SortArgs(server, "sort_items", "Sort a list", schema2,
 
 ### Security — Compiler-Enforced Checks
 
-The compiler **flags** these patterns in HTTP handlers (functions with `http.ResponseWriter` or the `res: http.Response` wrapper) with `security/*` warning diagnostics — the build still succeeds, but treat them as must-fix (gate on them in CI via `kukicha check --json`):
+The compiler **flags** these patterns in HTTP handlers (functions with `http.ResponseWriter` or the `res: http.Response` wrapper) with `security/*` diagnostics that block `check`/`build`/`run` by default. (Before v0.81.0 these were advisory warnings and the build still succeeded; downgrade back to advisory with `KUKICHA_LINT_SECURITY=0`, or silence with `--suppress-lint=security`.) Treat them as must-fix regardless:
 
 | Pattern | Fix |
 |---------|-----|
-| `httphelper.HTML(w, nonLiteral)` / `res.HTML(nonLiteral)` | `SafeHTML` variant, **or** compose an `html.Fragment` (`html.Escape(userValue)` per untrusted slot) and send it with `res.WriteHTML(f)` — this is the modern path, reaching XSS safety through the fragment builder instead of a blanket escape |
+| `httphelper.HTML(w, nonLiteral)` / `res.HTML(nonLiteral)` | `SafeHTML` variant, **or** compose an `html.Fragment` and send it with `res.WriteHTML(f)` — interpolation inside the fragment is auto-escaped, so `html.Render("<p>{name}</p>")` is already XSS-safe; `html.Raw(...)`/`html.Embed(...)` are the explicit opt-outs for pre-asserted-safe content |
 | `fetch.Get(url)` in handler | `fetch.SafeGet(url)` (or `fetch.NewExternal(url) \|> ... \|> Do()` for builder) |
 | `files.Read(path)` in handler | `url.CleanPath(path)` first to reject `..`/`%2e%2e`/`%2f`, then `sandbox.New(root)` + `sandbox.Read(box, cleaned)` |
 | `shell.Run("cmd {var}")` | `shell.Output("cmd", arg)` |
-| `httphelper.Redirect(w, r, nonLiteral)` | `httphelper.SafeRedirect(w, r, url, "host")` |
+| `httphelper.Redirect(w, nonLiteral)` / `res.Redirect(nonLiteral)` | `httphelper.SafeRedirect(w, url, "host")` / `res.SafeRedirect(url, "host")` |
 | `html.Render("<script>...")` | Static `.js` file with `<script src="...">` |
 | `regex.Match(userPattern, ...)` (non-literal pattern) | `regex.MatchSafe(pattern, text)` returns error, or hoist with `regex.MustCompile` at init + `regex.MatchCompiled` |
 | `notify("https://{r.Host}/...")` / `f(r.Host)` (Host-header forgery) | Wrap handler with `httphelper.TrustedHosts(handler, allowed...)`, or compare `r.Host` to an allowlist before reading it |
