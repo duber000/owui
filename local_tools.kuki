@@ -12,7 +12,7 @@ petiole main
 import "os"
 import "path/filepath"
 import "stdlib/json" as jsonpkg
-import "stdlib/llm"
+import "stdlib/jsonschema"
 import "stdlib/llm/chat"
 import "stdlib/netguard"
 import "stdlib/sandbox"
@@ -104,7 +104,7 @@ func buildLocalTools(cfg: Config) (LocalTools, error)
     return lt, empty
 
 func closeLocalTools(lt: LocalTools) error
-    return sandbox.Close(lt.Box)
+    return lt.Box.Close()
 
 # registerLocalTools attaches built-in tools to an existing Bridge.
 func registerLocalTools(b: reference Bridge, cfg: Config) error
@@ -117,7 +117,7 @@ func registerLocalTools(b: reference Bridge, cfg: Config) error
 # ---- Tool registry ----
 
 # toolDef wraps an chat.Tool literal so each registration reads as one line.
-func toolDef(name: string, description: string, schema: llm.JSONObject) chat.Tool
+func toolDef(name: string, description: string, schema: jsonschema.Object) chat.Tool
     return chat.Tool{
         Type: "function",
         Function: chat.ToolFunction{
@@ -128,46 +128,46 @@ func toolDef(name: string, description: string, schema: llm.JSONObject) chat.Too
     }
 
 func localToolDefs() list of chat.Tool
-    readSchema := llm.Schema({
-        llm.Prop("path", "string", "File path relative to sandbox root"),
+    readSchema := jsonschema.Schema(list of jsonschema.Property{
+        jsonschema.Prop("path", jsonschema.String, "File path relative to sandbox root"),
     })
-        |> llm.Required({"path"})
+        |> jsonschema.Required(list of string{"path"})
 
-    writeSchema := llm.Schema({
-        llm.Prop("path", "string", "File path relative to sandbox root"),
-        llm.Prop("content", "string", "Content to write"),
+    writeSchema := jsonschema.Schema(list of jsonschema.Property{
+        jsonschema.Prop("path", jsonschema.String, "File path relative to sandbox root"),
+        jsonschema.Prop("content", jsonschema.String, "Content to write"),
     })
-        |> llm.Required({"path", "content"})
+        |> jsonschema.Required(list of string{"path", "content"})
 
-    listSchema := llm.Schema({
-        llm.Prop("path", "string", "Directory path relative to sandbox root (default: .)"),
+    listSchema := jsonschema.Schema(list of jsonschema.Property{
+        jsonschema.Prop("path", jsonschema.String, "Directory path relative to sandbox root (default: .)"),
     })
 
-    searchSchema := llm.Schema({
-        llm.Prop("pattern", "string", "File name glob pattern (e.g. *.go, main.*)"),
+    searchSchema := jsonschema.Schema(list of jsonschema.Property{
+        jsonschema.Prop("pattern", jsonschema.String, "File name glob pattern (e.g. *.go, main.*)"),
     })
-        |> llm.Required({"pattern"})
+        |> jsonschema.Required(list of string{"pattern"})
 
-    grepSchema := llm.Schema({
-        llm.Prop("pattern", "string", "Regex or literal text to search for"),
-        llm.Prop("path", "string", "Path within sandbox to search (default: .)"),
+    grepSchema := jsonschema.Schema(list of jsonschema.Property{
+        jsonschema.Prop("pattern", jsonschema.String, "Regex or literal text to search for"),
+        jsonschema.Prop("path", jsonschema.String, "Path within sandbox to search (default: .)"),
     })
-        |> llm.Required({"pattern"})
+        |> jsonschema.Required(list of string{"pattern"})
 
     # run_command has an array-typed `args` property — llm.Schema only
     # expresses scalar types today, so build this one by hand.
-    runProps := llm.JSONObject{
-        "cmd": llm.JSONObject{
+    runProps := jsonschema.Object{
+        "cmd": jsonschema.Object{
             "type": "string",
             "description": "Command name — allowed: {strpkg.Join(defaultCmdAllowList(), " ")}",
         },
-        "args": llm.JSONObject{
+        "args": jsonschema.Object{
             "type": "array",
-            "items": llm.JSONObject{"type": "string"},
+            "items": jsonschema.Object{"type": "string"},
             "description": "Command arguments",
         },
     }
-    runSchema := llm.JSONObject{
+    runSchema := jsonschema.Object{
         "type": "object",
         "properties": runProps,
         "required": list of string{"cmd"},
@@ -322,15 +322,15 @@ func dispatchLocalTool(lt: LocalTools, name: string, argsJSON: string) (string, 
 # ---- Implementations ----
 
 func localReadFile(lt: LocalTools, path: string) (string, error)
-    content := sandbox.ReadString(lt.Box, path) onerr return "", error "read_file: {error}"
+    content := lt.Box.ReadString(path) onerr return "", error "read_file: {error}"
     return content, empty
 
 func localWriteFile(lt: LocalTools, path: string, content: string) (string, error)
-    sandbox.WriteString(lt.Box, content, path) onerr return "", error "write_file: {error}"
+    lt.Box.WriteString(content, path) onerr return "", error "write_file: {error}"
     return "wrote {len(content)} bytes to {path}", empty
 
 func localListDir(lt: LocalTools, path: string) (string, error)
-    names := sandbox.List(lt.Box, path) onerr return "", error "list_dir: {error}"
+    names := lt.Box.List(path) onerr return "", error "list_dir: {error}"
     if len(names) equals 0
         return "(empty)", empty
     return strpkg.Join(names, "\n"), empty
@@ -340,7 +340,12 @@ func localSearchFiles(lt: LocalTools, pattern: string) (string, error)
     out := shell.New("find", sandboxPath)
         |> .Flag("-name", pattern)
         |> .Execute()
-    return formatRelativeMatches(out.Stdout as string, sandboxPath), empty
+    stdout := out |> switch as r
+        when shell.Succeeded
+            r.Stdout as string
+        when shell.Failed
+            r.Error.Stdout as string
+    return formatRelativeMatches(stdout, sandboxPath), empty
 
 func localGrepFiles(lt: LocalTools, pattern: string, searchPath: string) (string, error)
     sandboxPath := lt.Box.Path
@@ -349,7 +354,12 @@ func localGrepFiles(lt: LocalTools, pattern: string, searchPath: string) (string
     if strpkg.HasPrefix(rel, "..")
         return "", error "grep_files: path escapes sandbox"
     out := shell.New("grep", "-r", "-n", pattern, fullPath) |> .Execute()
-    return formatRelativeMatches(out.Stdout as string, sandboxPath), empty
+    stdout := out |> switch as r
+        when shell.Succeeded
+            r.Stdout as string
+        when shell.Failed
+            r.Error.Stdout as string
+    return formatRelativeMatches(stdout, sandboxPath), empty
 
 # formatRelativeMatches trims the sandbox prefix from each non-empty line of `stdout`
 # so paths shown to the LLM are sandbox-relative, not absolute.
@@ -368,8 +378,18 @@ func localRunCommand(lt: LocalTools, cmd: string, args: list of string) (string,
         return "", error "run_command: '{cmd}' is not in the allowed command list"
     sandboxPath := lt.Box.Path
     out := shell.New(cmd, many args) |> .Dir(sandboxPath) |> .Execute()
-    stdout := strpkg.TrimSpace(out.Stdout as string)
-    stderr := strpkg.TrimSpace(out.Stderr as string)
+    stdout := ""
+    stderr := ""
+    exitCode := 0
+    if out is shell.Succeeded as ok
+        stdout = ok.Stdout as string
+        stderr = ok.Stderr as string
+    else if out is shell.Failed as fail
+        stdout = fail.Error.Stdout as string
+        stderr = fail.Error.Stderr as string
+        exitCode = fail.Error.ExitCode
+    stdout = strpkg.TrimSpace(stdout)
+    stderr = strpkg.TrimSpace(stderr)
     combined := stdout
     if stderr isnt ""
         if combined isnt ""
@@ -378,6 +398,6 @@ func localRunCommand(lt: LocalTools, cmd: string, args: list of string) (string,
             combined = "[stderr]\n{stderr}"
     if combined equals ""
         combined = "(no output)"
-    if not out.Success()
-        return combined, error "exited {out.ExitCode}"
+    if not shell.Success(out)
+        return combined, error "exited {exitCode}"
     return combined, empty
