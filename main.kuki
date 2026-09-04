@@ -50,7 +50,7 @@ func main()
     positional := cli.GetRest(parsed, "args")
 
     # Dispatch subcommands; anything else falls through to agent mode
-    if len(positional) > 0
+    if positional isnt empty
         handled, err := dispatchSubcommand(positional[0], flagSchema)
         if handled
             if err isnt empty
@@ -364,13 +364,13 @@ func gatherPrompt(args: list of string) string
     prompt := ""
 
     # Simple heuristic: assume not a terminal if TERM is empty and no args
-    if not isTerminal(os.Stdin) and len(args) equals 0
+    if not isTerminal(os.Stdin) and (args is empty)
         data := io.ReadAll(os.Stdin) onerr
             fallback empty list of byte
 
         prompt = strpkg.TrimSpace(data as string)
 
-    if len(args) > 0
+    if args isnt empty
         argText := strpkg.Join(args, " ")
         if prompt isnt ""
             prompt = "{argText}\n\n{prompt}"

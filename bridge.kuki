@@ -74,7 +74,7 @@ func connectOne(ctx: context.Context, cfg: MCPServerConfig) (reference mcp.Clien
 func closeBridges(b: reference Bridge) error
     for _, s in b.Servers
         mcp.Close(s.Session)
-    if len(b.LocalToolNames) > 0
+    if b.LocalToolNames isnt empty
         closeLocalTools(b.LocalTools) onerr return empty
     return empty
 
@@ -82,7 +82,7 @@ func closeBridges(b: reference Bridge) error
 func bridgeTools(b: reference Bridge) list of chat.Tool
     tools := make(list of chat.Tool, 0, len(b.ToolMap) + len(b.LocalToolNames))
 
-    if len(b.LocalToolNames) > 0
+    if b.LocalToolNames isnt empty
         tools = append(tools, many localToolDefs())
 
     for _, s in b.Servers

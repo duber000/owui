@@ -86,17 +86,17 @@ func buildLocalTools(cfg: Config) (LocalTools, error)
     box := sandbox.New(sandboxDir) onerr explain "sandbox"
     lt.Box = box
 
-    if len(cfg.IPAllowList) > 0
+    if cfg.IPAllowList isnt empty
         g := netguard.NewAllow(cfg.IPAllowList) onerr explain "netguard allow"
         lt.Guard = g
         lt.HasGuard = true
-    else if len(cfg.IPBlockList) > 0
+    else if cfg.IPBlockList isnt empty
         g := netguard.NewBlock(cfg.IPBlockList) onerr explain "netguard block"
         lt.Guard = g
         lt.HasGuard = true
 
     allowed := cfg.CmdAllowList
-    if len(allowed) equals 0
+    if allowed is empty
         allowed = defaultCmdAllowList()
     for cmd in allowed
         lt.AllowedCmds[cmd] = true
@@ -140,7 +140,11 @@ func localToolDefs() list of chat.Tool
         |> jsonschema.Required(list of string{"path", "content"})
 
     listSchema := jsonschema.Schema(list of jsonschema.Property{
-        jsonschema.Prop("path", jsonschema.String, "Directory path relative to sandbox root (default: .)"),
+        jsonschema.Prop(
+            "path",
+            jsonschema.String,
+            "Directory path relative to sandbox root (default: .)",
+        ),
     })
 
     searchSchema := jsonschema.Schema(list of jsonschema.Property{
@@ -331,7 +335,7 @@ func localWriteFile(lt: LocalTools, path: string, content: string) (string, erro
 
 func localListDir(lt: LocalTools, path: string) (string, error)
     names := lt.Box.List(path) onerr return "", error "list_dir: {error}"
-    if len(names) equals 0
+    if names is empty
         return "(empty)", empty
     return strpkg.Join(names, "\n"), empty
 
@@ -345,6 +349,7 @@ func localSearchFiles(lt: LocalTools, pattern: string) (string, error)
             r.Stdout as string
         when shell.Failed
             r.Error.Stdout as string
+
     return formatRelativeMatches(stdout, sandboxPath), empty
 
 func localGrepFiles(lt: LocalTools, pattern: string, searchPath: string) (string, error)
@@ -359,6 +364,7 @@ func localGrepFiles(lt: LocalTools, pattern: string, searchPath: string) (string
             r.Stdout as string
         when shell.Failed
             r.Error.Stdout as string
+
     return formatRelativeMatches(stdout, sandboxPath), empty
 
 # formatRelativeMatches trims the sandbox prefix from each non-empty line of `stdout`

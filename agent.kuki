@@ -68,7 +68,7 @@ func runAgent(ctx: context.Context, a: reference Agent, userPrompt: string, hist
 func initMessages(a: reference Agent, userPrompt: string, history: list of chat.Message) list of chat.Message
     messages := append(empty list of chat.Message, many history)
 
-    if len(messages) equals 0
+    if messages is empty
         sys := a.SystemPrompt
         if sys equals ""
             sys = defaultSystemPrompt
@@ -94,7 +94,7 @@ func buildLLMClient(a: reference Agent, messages: list of chat.Message, tools: l
     for t in tools
         client = chat.AddTool(client, t.Function.Name, t.Function.Description, t.Function.Parameters)
 
-    if len(tools) > 0
+    if tools isnt empty
         client = chat.ToolChoiceAuto(client)
 
     return client
