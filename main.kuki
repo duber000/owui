@@ -127,7 +127,7 @@ func buildAgent(ctx: context.Context, cfg: Config, flagSystem: string) (referenc
         a.SystemPrompt = flagSystem
 
     # Load AGENTS.md from cwd if present — gives the LLM project context
-    agentsDoc := files.ReadString("AGENTS.md") onerr ""
+    agentsDoc := files.ReadStringOr("AGENTS.md", "")
     if agentsDoc isnt ""
         base := a.SystemPrompt
         if base equals ""

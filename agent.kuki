@@ -5,7 +5,7 @@
 petiole main
 
 import "context"
-import "stdlib/ctx" as ctxpkg
+import "stdlib/ctx"
 import "stdlib/json" as jsonpkg
 import "stdlib/llm"
 import "stdlib/llm/chat"
@@ -89,7 +89,7 @@ func buildLLMClient(a: reference Agent, messages: list of chat.Message, tools: l
         |> chat.APIKey(resolveAPIKey(a.Config))
         |> chat.Messages(messages)
         |> chat.MaxTokens(131072)
-        |> chat.WithContext(ctxpkg.WithTimeout(ctxpkg.Background(), 30 * time.Minute))
+        |> chat.WithContext(ctx.WithTimeout(ctx.Background(), 30 * time.Minute))
 
     for t in tools
         client = chat.AddTool(client, t.Function.Name, t.Function.Description, t.Function.Parameters)
