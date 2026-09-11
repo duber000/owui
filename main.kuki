@@ -11,6 +11,7 @@ import "io"
 import "os"
 import "stdlib/cli"
 import "stdlib/color"
+import "stdlib/errors" as errs
 import "stdlib/fetch"
 import "stdlib/files"
 import "stdlib/input"
@@ -109,7 +110,7 @@ func cmdRun(positional: list of string, flagModel: string, flagChat: bool, flagR
     return runOneShot(ctx, a, prompt, flagRaw, flagTools)
 
 func buildAgent(ctx: context.Context, cfg: Config, flagSystem: string) (reference Agent, error)
-    bridge := connectBridges(ctx, cfg.MCPServers) onerr return empty, error "connecting to MCP servers: {error}"
+    bridge := connectBridges(ctx, cfg.MCPServers) onerr return empty, errs.Wrap(error, "connecting to MCP servers")
 
     if cfg.BuiltInTools
         registerLocalTools(bridge, cfg) onerr

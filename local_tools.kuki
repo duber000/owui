@@ -11,6 +11,7 @@ petiole main
 
 import "os"
 import "path/filepath"
+import "stdlib/errors" as errs
 import "stdlib/json" as jsonpkg
 import "stdlib/jsonschema"
 import "stdlib/llm/chat"
@@ -265,12 +266,12 @@ func parseLocalToolCall(name: string, argsJSON: string) (LocalToolCall, error)
 
     switch tool
         when LocalTool.ReadFile
-            a := jsonpkg.Parse of readFileArgs from argsJSON onerr return ReadFile{}, error "read_file: bad args: {error}"
+            a := jsonpkg.Parse of readFileArgs from argsJSON onerr return ReadFile{}, errs.Wrapf(error, "read_file: bad args")
             if a.Path equals ""
                 return ReadFile{}, error "read_file: missing path"
             return ReadFile{path: a.Path}, empty
         when LocalTool.WriteFile
-            a := jsonpkg.Parse of writeFileArgs from argsJSON onerr return ReadFile{}, error "write_file: bad args: {error}"
+            a := jsonpkg.Parse of writeFileArgs from argsJSON onerr return ReadFile{}, errs.Wrapf(error, "write_file: bad args")
             if a.Path equals ""
                 return ReadFile{}, error "write_file: missing path"
             return WriteFile{path: a.Path, content: a.Content}, empty
@@ -278,18 +279,18 @@ func parseLocalToolCall(name: string, argsJSON: string) (LocalToolCall, error)
             # list_dir tolerates empty argsJSON — defaults to "."
             a := listDirArgs{}
             if argsJSON isnt "" and argsJSON isnt "{}"
-                a = jsonpkg.Parse of listDirArgs from argsJSON onerr return ReadFile{}, error "list_dir: bad args: {error}"
+                a = jsonpkg.Parse of listDirArgs from argsJSON onerr return ReadFile{}, errs.Wrapf(error, "list_dir: bad args")
             path := a.Path
             if path equals ""
                 path = "."
             return ListDir{path: path}, empty
         when LocalTool.SearchFiles
-            a := jsonpkg.Parse of searchFilesArgs from argsJSON onerr return ReadFile{}, error "search_files: bad args: {error}"
+            a := jsonpkg.Parse of searchFilesArgs from argsJSON onerr return ReadFile{}, errs.Wrapf(error, "search_files: bad args")
             if a.Pattern equals ""
                 return ReadFile{}, error "search_files: missing pattern"
             return SearchFiles{pattern: a.Pattern}, empty
         when LocalTool.GrepFiles
-            a := jsonpkg.Parse of grepFilesArgs from argsJSON onerr return ReadFile{}, error "grep_files: bad args: {error}"
+            a := jsonpkg.Parse of grepFilesArgs from argsJSON onerr return ReadFile{}, errs.Wrapf(error, "grep_files: bad args")
             if a.Pattern equals ""
                 return ReadFile{}, error "grep_files: missing pattern"
             searchPath := a.Path
@@ -297,7 +298,7 @@ func parseLocalToolCall(name: string, argsJSON: string) (LocalToolCall, error)
                 searchPath = "."
             return GrepFiles{pattern: a.Pattern, path: searchPath}, empty
         when LocalTool.RunCommand
-            a := jsonpkg.Parse of runCommandArgs from argsJSON onerr return ReadFile{}, error "run_command: bad args: {error}"
+            a := jsonpkg.Parse of runCommandArgs from argsJSON onerr return ReadFile{}, errs.Wrapf(error, "run_command: bad args")
             if a.Cmd equals ""
                 return ReadFile{}, error "run_command: missing cmd"
             return RunCommand{cmd: a.Cmd, args: a.Args}, empty
@@ -326,15 +327,15 @@ func dispatchLocalTool(lt: LocalTools, name: string, argsJSON: string) (string, 
 # ---- Implementations ----
 
 func localReadFile(lt: LocalTools, path: string) (string, error)
-    content := lt.Box.ReadString(path) onerr return "", error "read_file: {error}"
+    content := lt.Box.ReadString(path) onerr return "", errs.Wrap(error, "read_file")
     return content, empty
 
 func localWriteFile(lt: LocalTools, path: string, content: string) (string, error)
-    lt.Box.WriteString(content, path) onerr return "", error "write_file: {error}"
+    lt.Box.WriteString(content, path) onerr return "", errs.Wrap(error, "write_file")
     return "wrote {len(content)} bytes to {path}", empty
 
 func localListDir(lt: LocalTools, path: string) (string, error)
-    names := lt.Box.List(path) onerr return "", error "list_dir: {error}"
+    names := lt.Box.List(path) onerr return "", errs.Wrap(error, "list_dir")
     if names is empty
         return "(empty)", empty
     return strpkg.Join(names, "\n"), empty
