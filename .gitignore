@@ -2,4 +2,4 @@
 llm-cli
 owui
 main.go
-.agents
+.agents/skills/kukicha/SKILL.md
