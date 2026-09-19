@@ -2,7 +2,7 @@ module owui
 
 go 1.27.0
 
-require kukicha.org/kukicha/stdlib v0.85.1
+require kukicha.org/kukicha/stdlib v0.85.2
 
 require (
 	github.com/google/jsonschema-go v0.4.3 // indirect
