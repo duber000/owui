@@ -1,3 +1,39 @@
+# AGENTS.md — owui repository guide
+
+Guidelines, verification commands, and architecture notes for agents working in `owui`.
+
+## Overview
+
+`owui` is a web UI and agent interaction workspace written in Kukicha. It handles multi-provider LLM streaming (`stdlib/llm/chat`, `stdlib/llm/anthropic`), tool dispatch via MCP (`stdlib/mcp`), and web server endpoints (`stdlib/http`).
+
+## Commands
+
+```bash
+# Type check all packages
+kukicha check ./...
+
+# Format check
+kukicha fmt --check --json .
+
+# Auto-format
+kukicha fmt -w .
+
+# Build executable (outputs ./owui)
+kukicha build .
+
+# Run unit tests
+go test ./...
+```
+
+## Critical Rules & Invariants
+
+### 1. HTTP Routing & Streaming
+- Handlers should use `stdlib/http` request and response abstractions.
+- Streaming LLM completions use chunked HTTP responses or SSE.
+
+### 2. Binary Cleanup
+Building with `kukicha build .` produces a local binary (`./owui`). Delete the binary and temporary `main.go` after test builds before staging.
+
 <!-- kukicha:start -->
 # Kukicha
 
