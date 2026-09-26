@@ -1,3 +1,18 @@
+---
+type: Agent Instructions
+title: AGENTS.md — owui repository guide
+description: Guidelines, verification commands, and architecture notes for agents working in owui.
+tags: [agents, conventions, kukicha, owui, webui, llm, mcp]
+generated: { by: antigravity/gemini-3.8-flash, at: 2026-09-26T12:51:00-04:00 }
+verified:
+stale_after: 2026-12-26T00:00:00Z
+status: stable
+sources:
+  - id: repo-tree
+    resource: /
+    title: Repository source tree
+---
+
 # AGENTS.md — owui repository guide
 
 Guidelines, verification commands, and architecture notes for agents working in `owui`.
