@@ -264,9 +264,9 @@ func cmdHealth() error
 
         m := make(MCPServers)
         m[name] = mcfg
-        bridge, err := connectBridges(ctx, m)
-        if err isnt empty
-            print("{color.BrightRed("x")} {err}")
+        bridge, bridgeErr := connectBridges(ctx, m)
+        if bridgeErr isnt empty
+            print("{color.BrightRed("x")} {bridgeErr}")
         else
             print("{color.Green("ok")} {bridgeToolCount(bridge)} tools")
             closeBridges(bridge)
