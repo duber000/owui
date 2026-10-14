@@ -106,9 +106,9 @@ func bridgeToolCount(b: reference Bridge) int
 
 func bridgeToolNames(b: reference Bridge) list of string
     names := make(list of string, 0, len(b.LocalToolNames) + len(b.ToolMap))
-    for k, _ in b.LocalToolNames
+    for k in b.LocalToolNames
         names = append(names, k)
-    for k, _ in b.ToolMap
+    for k in b.ToolMap
         names = append(names, k)
     return names
 
