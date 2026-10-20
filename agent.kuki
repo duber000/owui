@@ -6,6 +6,7 @@ petiole main
 
 import "context"
 import "stdlib/ctx"
+import "stdlib/errors" as errs
 import "stdlib/json" as jsonpkg
 import "stdlib/llm"
 import "stdlib/llm/chat"
@@ -54,7 +55,7 @@ func runAgent(ctx: context.Context, a: reference Agent, userPrompt: string, hist
 
         comp, sErr := collect()
         if sErr isnt empty
-            return empty, error "LLM request failed (round {round}): {sErr}"
+            return empty, errs.Wrap(sErr, "LLM request failed (round {round})")
 
         content := chat.GetText(comp)
 
@@ -70,7 +71,7 @@ func initMessages(a: reference Agent, userPrompt: string, history: list of chat.
 
     if messages is empty
         sys := a.SystemPrompt
-        if sys equals ""
+        if sys is empty
             sys = defaultSystemPrompt
         messages = append(messages, chat.Message{Role: "system", Content: sys})
 
@@ -114,7 +115,7 @@ func handleToolCalls(ctx: context.Context, a: reference Agent, messages: list of
         # prints the full diagnostic list to stdout/stderr).
         toolResult, toolErr := callBridgeTool(ctx, a.Bridge, tc.Function.Name, tc.Function.Arguments)
         if toolErr isnt empty
-            if toolResult isnt ""
+            if toolResult isnt empty
                 toolResult = "{toolResult}\nERROR: {toolErr}"
             else
                 toolResult = "ERROR: {toolErr}"

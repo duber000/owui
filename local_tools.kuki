@@ -80,7 +80,7 @@ func buildLocalTools(cfg: Config) (LocalTools, error)
     lt := LocalTools{AllowedCmds: make(StringSet)}
 
     sandboxDir := cfg.SandboxDir
-    if sandboxDir equals ""
+    if sandboxDir is empty
         cwd := os.Getwd() onerr explain "sandbox cwd"
         sandboxDir = cwd
 
@@ -267,39 +267,39 @@ func parseLocalToolCall(name: string, argsJSON: string) (LocalToolCall, error)
     switch tool
         when LocalTool.ReadFile
             a := jsonpkg.Parse of readFileArgs from argsJSON onerr return ReadFile{}, errs.Wrapf(error, "read_file: bad args")
-            if a.Path equals ""
+            if a.Path is empty
                 return ReadFile{}, error "read_file: missing path"
             return ReadFile{path: a.Path}, empty
         when LocalTool.WriteFile
             a := jsonpkg.Parse of writeFileArgs from argsJSON onerr return ReadFile{}, errs.Wrapf(error, "write_file: bad args")
-            if a.Path equals ""
+            if a.Path is empty
                 return ReadFile{}, error "write_file: missing path"
             return WriteFile{path: a.Path, content: a.Content}, empty
         when LocalTool.ListDir
             # list_dir tolerates empty argsJSON — defaults to "."
             a := listDirArgs{}
-            if argsJSON isnt "" and argsJSON isnt "{}"
+            if argsJSON isnt empty and argsJSON isnt "{}"
                 a = jsonpkg.Parse of listDirArgs from argsJSON onerr return ReadFile{}, errs.Wrapf(error, "list_dir: bad args")
             path := a.Path
-            if path equals ""
+            if path is empty
                 path = "."
             return ListDir{path: path}, empty
         when LocalTool.SearchFiles
             a := jsonpkg.Parse of searchFilesArgs from argsJSON onerr return ReadFile{}, errs.Wrapf(error, "search_files: bad args")
-            if a.Pattern equals ""
+            if a.Pattern is empty
                 return ReadFile{}, error "search_files: missing pattern"
             return SearchFiles{pattern: a.Pattern}, empty
         when LocalTool.GrepFiles
             a := jsonpkg.Parse of grepFilesArgs from argsJSON onerr return ReadFile{}, errs.Wrapf(error, "grep_files: bad args")
-            if a.Pattern equals ""
+            if a.Pattern is empty
                 return ReadFile{}, error "grep_files: missing pattern"
             searchPath := a.Path
-            if searchPath equals ""
+            if searchPath is empty
                 searchPath = "."
             return GrepFiles{pattern: a.Pattern, path: searchPath}, empty
         when LocalTool.RunCommand
             a := jsonpkg.Parse of runCommandArgs from argsJSON onerr return ReadFile{}, errs.Wrapf(error, "run_command: bad args")
-            if a.Cmd equals ""
+            if a.Cmd is empty
                 return ReadFile{}, error "run_command: missing cmd"
             return RunCommand{cmd: a.Cmd, args: a.Args}, empty
     return ReadFile{}, error "unreachable local tool: {name}"
@@ -372,11 +372,11 @@ func localGrepFiles(lt: LocalTools, pattern: string, searchPath: string) (string
 # so paths shown to the LLM are sandbox-relative, not absolute.
 func formatRelativeMatches(stdout: string, sandboxPath: string) string
     raw := strpkg.TrimSpace(stdout)
-    if raw equals ""
+    if raw is empty
         return "(no matches)"
     prefix := sandboxPath + "/"
     matches := strpkg.Split(raw, "\n")
-        |> slice.Filter(l => l isnt "")
+        |> slice.Filter(l => l isnt empty)
         |> slice.Map(l => strpkg.TrimPrefix(l, prefix))
     return strpkg.Join(matches, "\n")
 
@@ -398,12 +398,12 @@ func localRunCommand(lt: LocalTools, cmd: string, args: list of string) (string,
     stdout = strpkg.TrimSpace(stdout)
     stderr = strpkg.TrimSpace(stderr)
     combined := stdout
-    if stderr isnt ""
-        if combined isnt ""
+    if stderr isnt empty
+        if combined isnt empty
             combined = "{combined}\n[stderr]\n{stderr}"
         else
             combined = "[stderr]\n{stderr}"
-    if combined equals ""
+    if combined is empty
         combined = "(no output)"
     if not shell.Success(out)
         return combined, error "exited {exitCode}"

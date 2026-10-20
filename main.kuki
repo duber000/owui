@@ -89,7 +89,7 @@ func dispatchSubcommand(cmd: string, flagSchema: bool) (bool, error)
 
 func cmdRun(positional: list of string, flagModel: string, flagChat: bool, flagRaw: bool, flagTools: bool, flagSystem: string) error
     cfg := loadConfig()
-    if flagModel isnt ""
+    if flagModel isnt empty
         cfg.Model = flagModel
     validateConfig(cfg) onerr return
 
@@ -104,7 +104,7 @@ func cmdRun(positional: list of string, flagModel: string, flagChat: bool, flagR
         runChat(ctx, a, prompt)
         return empty
 
-    if prompt equals ""
+    if prompt is empty
         return error "no prompt provided — use -c for interactive chat"
 
     return runOneShot(ctx, a, prompt, flagRaw, flagTools)
@@ -117,21 +117,21 @@ func buildAgent(ctx: context.Context, cfg: Config, flagSystem: string) (referenc
             cli.Error(color.Dim("warning: local tools unavailable: {error}"))
 
     if isTTYErr()
-        sandboxLabel := if cfg.SandboxDir isnt "" then cfg.SandboxDir else "cwd"
+        sandboxLabel := if cfg.SandboxDir isnt empty then cfg.SandboxDir else "cwd"
         cli.Error(
             "{color.Dim("tools:")} {color.Dim("{bridgeToolCount(bridge)} available | sandbox: {sandboxLabel}")}",
         )
 
     a := reference of Agent{Bridge: bridge, Config: cfg, MaxRounds: cfg.MaxToolRounds}
 
-    if flagSystem isnt ""
+    if flagSystem isnt empty
         a.SystemPrompt = flagSystem
 
     # Load AGENTS.md from cwd if present — gives the LLM project context
     agentsDoc := files.ReadStringOr("AGENTS.md", "")
-    if agentsDoc isnt ""
+    if agentsDoc isnt empty
         base := a.SystemPrompt
-        if base equals ""
+        if base is empty
             base = defaultSystemPrompt
         a.SystemPrompt = "{base}\n\n# Project Context (AGENTS.md)\n\n{agentsDoc}"
         if isTTYErr()
@@ -183,7 +183,7 @@ type ModelsResponse
 
 func cmdListModels() error
     cfg := loadConfig()
-    if resolveAPIKey(cfg) equals ""
+    if resolveAPIKey(cfg) is empty
         return error "LLM API key required"
 
     url := "{resolveBaseURL(cfg)}{resolveModelsPath(cfg)}"
@@ -202,7 +202,7 @@ func cmdListModels() error
     print(color.Bold(color.Cyan("Available models:")))
     for _, m in models.Data
         name := m.Name
-        if name equals ""
+        if name is empty
             name = m.ID
         print("  {name} {color.Dim("({m.ID})")}")
 
@@ -241,7 +241,7 @@ func cmdHealth() error
     # Ollama and custom providers may run without an API key — probe the
     # models endpoint without auth rather than reporting "no API key".
     req := fetch.New(url)
-    if apiKey isnt ""
+    if apiKey isnt empty
         req = fetch.BearerAuth(req, apiKey)
     req = fetch.Retry(req, 3, 500)
     resp, err := fetch.Do(req)
@@ -316,13 +316,13 @@ func runChat(ctx: context.Context, a: reference Agent, initialPrompt: string)
     print("")
 
     for true
-        if prompt equals ""
+        if prompt is empty
             prompt = input.ReadLine(color.Bold(color.Cyan("you> "))) onerr
                 break
 
             if prompt equals "exit" or prompt equals "quit"
                 break
-            if prompt equals ""
+            if prompt is empty
                 continue
 
         setToolCallbacks(a, "  ", 60, 80)
@@ -347,7 +347,7 @@ func runChat(ctx: context.Context, a: reference Agent, initialPrompt: string)
             prompt = ""
             continue
 
-        if firstChunk and result.Content isnt ""
+        if firstChunk and result.Content isnt empty
             # Streaming produced no chunks (e.g. buffered response) — print normally.
             print("\n{color.Dim(a.Config.Model)}  {result.Content}")
         else
@@ -373,7 +373,7 @@ func gatherPrompt(args: list of string) string
 
     if args isnt empty
         argText := strpkg.Join(args, " ")
-        if prompt isnt ""
+        if prompt isnt empty
             prompt = "{argText}\n\n{prompt}"
         else
             prompt = argText

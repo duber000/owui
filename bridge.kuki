@@ -67,7 +67,7 @@ func connectBridges(ctx: context.Context, configs: MCPServers) (reference Bridge
     return b, empty
 
 func connectOne(ctx: context.Context, cfg: MCPServerConfig) (reference mcp.ClientSession, error)
-    if cfg.APIKey isnt ""
+    if cfg.APIKey isnt empty
         return mcp.BearerConnect(ctx, cfg.URL, cfg.APIKey)
 
     return mcp.Connect(ctx, cfg.URL)
@@ -135,7 +135,7 @@ func findServer(b: reference Bridge, name: string) reference BridgeServer
 
 func invokeMCPTool(ctx: context.Context, s: reference BridgeServer, name: string, argsJSON: string) (string, error)
     args := empty map of string to any
-    if argsJSON isnt "" and argsJSON isnt "{}"
+    if argsJSON isnt empty and argsJSON isnt "{}"
         args = jsonpkg.Parse of jsonschema.Object from argsJSON onerr return "", errs.Wrap(error, "invalid tool arguments")
 
     result := mcp.CallTool(ctx, s.Session, name, args) onerr return "", error

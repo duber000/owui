@@ -121,7 +121,7 @@ func loadConfig() Config
 
     # Try loading from config file
     data := files.ReadStringOr(defaultConfigPath(), "") onerr ""
-    if data isnt ""
+    if data isnt empty
         # Decode into the existing cfg rather than replacing it, so fields
         # absent from the JSON file keep their in-code defaults instead of
         # being zeroed. Env vars still override on top below.
@@ -146,7 +146,7 @@ func loadConfig() Config
     cfg.TerminalMCPAPIKey = envOr("OWUI_TERMINAL_MCP_API_KEY", cfg.TerminalMCPAPIKey)
     cfg.SandboxDir = envOr("OWUI_SANDBOX_DIR", cfg.SandboxDir)
 
-    if cfg.TerminalMCPURL isnt ""
+    if cfg.TerminalMCPURL isnt empty
         # Keep an explicit terminal disable from mcp_servers while applying
         # the legacy terminal-specific URL and key settings.
         terminal := cfg.MCPServers["terminal"]
@@ -158,14 +158,14 @@ func loadConfig() Config
 
 func envOr(name: string, defaultValue: string) string
     v := env.GetOr(name, "")
-    if v isnt ""
+    if v isnt empty
         return v
     return defaultValue
 
 # resolveProvider parses cfg.Provider, falling back to OpenWebUI on a bad
 # value so a typo in config never silently breaks the agent.
 func resolveProvider(cfg: Config) Provider
-    if cfg.Provider equals ""
+    if cfg.Provider is empty
         return Provider.OpenWebUI
     p := ParseProvider(cfg.Provider) onerr return Provider.OpenWebUI
     return p
@@ -175,24 +175,24 @@ func resolveProvider(cfg: Config) Provider
 # The legacy field is scoped to openwebui so switching `provider` to hetzner
 # etc. doesn't have to fight a stale webui_url left in an old config file.
 func resolveBaseURL(cfg: Config) string
-    if cfg.LLMBaseURL isnt ""
+    if cfg.LLMBaseURL isnt empty
         return strpkg.TrimRight(cfg.LLMBaseURL, "/")
     p := resolveProvider(cfg)
-    if p equals Provider.OpenWebUI and cfg.WebUIURL isnt ""
+    if p equals Provider.OpenWebUI and cfg.WebUIURL isnt empty
         return strpkg.TrimRight(cfg.WebUIURL, "/")
     return strpkg.TrimRight(providerPreset(p).BaseURL, "/")
 
 # resolveChatPath picks the effective chat-completions path: explicit
 # override > provider preset.
 func resolveChatPath(cfg: Config) string
-    if cfg.ChatPath isnt ""
+    if cfg.ChatPath isnt empty
         return cfg.ChatPath
     return providerPreset(resolveProvider(cfg)).ChatPath
 
 # resolveModelsPath picks the effective models-list path: explicit override
 # > provider preset.
 func resolveModelsPath(cfg: Config) string
-    if cfg.ModelsPath isnt ""
+    if cfg.ModelsPath isnt empty
         return cfg.ModelsPath
     return providerPreset(resolveProvider(cfg)).ModelsPath
 
@@ -200,13 +200,13 @@ func resolveModelsPath(cfg: Config) string
 # legacy webui_api_key (only for the openwebui provider) > provider's
 # conventional env var.
 func resolveAPIKey(cfg: Config) string
-    if cfg.LLMAPIKey isnt ""
+    if cfg.LLMAPIKey isnt empty
         return cfg.LLMAPIKey
     p := resolveProvider(cfg)
-    if p equals Provider.OpenWebUI and cfg.WebUIAPIKey isnt ""
+    if p equals Provider.OpenWebUI and cfg.WebUIAPIKey isnt empty
         return cfg.WebUIAPIKey
     envName := providerPreset(p).APIKeyEnv
-    if envName isnt ""
+    if envName isnt empty
         return env.GetOr(envName, "")
     return ""
 
@@ -222,6 +222,6 @@ func validateConfig(cfg: Config) error
         return empty
     if resolveProvider(cfg) equals Provider.Custom
         return empty
-    if resolveAPIKey(cfg) equals ""
+    if resolveAPIKey(cfg) is empty
         return error "LLM API key required: set OWUI_LLM_API_KEY (or the provider's env var), or run `owui configure`"
     return empty
