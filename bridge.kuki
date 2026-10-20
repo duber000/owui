@@ -7,7 +7,6 @@ petiole main
 import "context"
 import "stdlib/cli"
 import "stdlib/color"
-import "stdlib/errors" as errs
 import "stdlib/json" as jsonpkg
 import "stdlib/jsonschema"
 import "stdlib/llm/chat"
@@ -136,7 +135,7 @@ func findServer(b: reference Bridge, name: string) reference BridgeServer
 func invokeMCPTool(ctx: context.Context, s: reference BridgeServer, name: string, argsJSON: string) (string, error)
     args := empty map of string to any
     if argsJSON isnt empty and argsJSON isnt "{}"
-        args = jsonpkg.Parse of jsonschema.Object from argsJSON onerr return "", errs.Wrap(error, "invalid tool arguments")
+        args = jsonpkg.Parse of jsonschema.Object from argsJSON onerr explain "invalid tool arguments"
 
     result := mcp.CallTool(ctx, s.Session, name, args) onerr return "", error
 

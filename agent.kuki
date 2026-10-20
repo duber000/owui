@@ -115,10 +115,7 @@ func handleToolCalls(ctx: context.Context, a: reference Agent, messages: list of
         # prints the full diagnostic list to stdout/stderr).
         toolResult, toolErr := callBridgeTool(ctx, a.Bridge, tc.Function.Name, tc.Function.Arguments)
         if toolErr isnt empty
-            if toolResult isnt empty
-                toolResult = "{toolResult}\nERROR: {toolErr}"
-            else
-                toolResult = "ERROR: {toolErr}"
+            toolResult = if toolResult isnt empty then "{toolResult}\nERROR: {toolErr}" else "ERROR: {toolErr}"
 
         if a.OnToolResult isnt empty
             a.OnToolResult(tc.Function.Name, strpkg.Truncate(toolResult, 500))

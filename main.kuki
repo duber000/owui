@@ -373,10 +373,7 @@ func gatherPrompt(args: list of string) string
 
     if args isnt empty
         argText := strpkg.Join(args, " ")
-        if prompt isnt empty
-            prompt = "{argText}\n\n{prompt}"
-        else
-            prompt = argText
+        prompt = if prompt isnt empty then "{argText}\n\n{prompt}" else argText
 
     return prompt
 

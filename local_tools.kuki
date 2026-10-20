@@ -327,15 +327,15 @@ func dispatchLocalTool(lt: LocalTools, name: string, argsJSON: string) (string, 
 # ---- Implementations ----
 
 func localReadFile(lt: LocalTools, path: string) (string, error)
-    content := lt.Box.ReadString(path) onerr return "", errs.Wrap(error, "read_file")
+    content := lt.Box.ReadString(path) onerr explain "read_file"
     return content, empty
 
 func localWriteFile(lt: LocalTools, path: string, content: string) (string, error)
-    lt.Box.WriteString(content, path) onerr return "", errs.Wrap(error, "write_file")
+    lt.Box.WriteString(content, path) onerr explain "write_file"
     return "wrote {len(content)} bytes to {path}", empty
 
 func localListDir(lt: LocalTools, path: string) (string, error)
-    names := lt.Box.List(path) onerr return "", errs.Wrap(error, "list_dir")
+    names := lt.Box.List(path) onerr explain "list_dir"
     if names is empty
         return "(empty)", empty
     return strpkg.Join(names, "\n"), empty
@@ -399,10 +399,7 @@ func localRunCommand(lt: LocalTools, cmd: string, args: list of string) (string,
     stderr = strpkg.TrimSpace(stderr)
     combined := stdout
     if stderr isnt empty
-        if combined isnt empty
-            combined = "{combined}\n[stderr]\n{stderr}"
-        else
-            combined = "[stderr]\n{stderr}"
+        combined = if combined isnt empty then "{combined}\n[stderr]\n{stderr}" else "[stderr]\n{stderr}"
     if combined is empty
         combined = "(no output)"
     if not shell.Success(out)
