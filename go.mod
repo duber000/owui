@@ -4,7 +4,7 @@ go 1.27.2
 
 replace kukicha.org/kukicha/stdlib => ./.kukicha/stdlib
 
-require kukicha.org/kukicha/stdlib v0.86.0
+require kukicha.org/kukicha/stdlib v0.86.1
 
 require (
 	github.com/google/jsonschema-go v0.4.3 // indirect
