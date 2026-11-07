@@ -2,10 +2,6 @@ module owui
 
 go 1.27.3
 
-replace kukicha.org/kukicha/stdlib => ./.kukicha/stdlib
-
-require kukicha.org/kukicha/stdlib v0.86.4
-
 require (
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/modelcontextprotocol/go-sdk v1.8.0 // indirect
@@ -19,4 +15,7 @@ require (
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	kukicha.org/stdlib v0.86.7
 )
+
+replace kukicha.org/stdlib => ./.kukicha/stdlib
