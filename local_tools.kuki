@@ -21,6 +21,11 @@ import "stdlib/shell"
 import "stdlib/slice"
 import "stdlib/string" as strpkg
 
+func effectiveCmdAllowList(cfg: Config) list of string
+    if cfg.CmdAllowList isnt empty
+        return cfg.CmdAllowList
+    return defaultCmdAllowList()
+
 func defaultCmdAllowList() list of string
     return list of string{
         "bd",
@@ -96,9 +101,7 @@ func buildLocalTools(cfg: Config) (LocalTools, error)
         lt.Guard = g
         lt.HasGuard = true
 
-    allowed := cfg.CmdAllowList
-    if allowed is empty
-        allowed = defaultCmdAllowList()
+    allowed := effectiveCmdAllowList(cfg)
     for cmd in allowed
         lt.AllowedCmds[cmd] = true
 
@@ -111,6 +114,7 @@ func closeLocalTools(lt: LocalTools) error
 func registerLocalTools(b: reference Bridge, cfg: Config) error
     lt := buildLocalTools(cfg)
     b.LocalTools = lt
+    b.CmdHint = strpkg.Join(effectiveCmdAllowList(cfg), " ")
     for _, t in allLocalTools()
         b.LocalToolNames[t.String()] = true
     return empty
@@ -128,7 +132,10 @@ func toolDef(name: string, description: string, schema: jsonschema.Object) chat.
         },
     }
 
-func localToolDefs() list of chat.Tool
+func localToolDefs(cmdHint: string) list of chat.Tool
+    if cmdHint is empty
+        cmdHint = strpkg.Join(defaultCmdAllowList(), " ")
+
     readSchema := jsonschema.Schema(list of jsonschema.Property{
         jsonschema.Prop("path", jsonschema.String, "File path relative to sandbox root"),
     })
@@ -164,7 +171,7 @@ func localToolDefs() list of chat.Tool
     runProps := jsonschema.Object{
         "cmd": jsonschema.Object{
             "type": "string",
-            "description": "Command name — allowed: {strpkg.Join(defaultCmdAllowList(), " ")}",
+            "description": "Command name — allowed: {cmdHint}",
         },
         "args": jsonschema.Object{
             "type": "array",
@@ -274,6 +281,12 @@ func parseLocalToolCall(name: string, argsJSON: string) (LocalToolCall, error)
             a := jsonpkg.Parse of writeFileArgs from argsJSON onerr return ReadFile{}, errs.Wrapf(error, "write_file: bad args")
             if a.Path is empty
                 return ReadFile{}, error "write_file: missing path"
+            # Reject a missing `content` rather than silently truncating the
+            # target file to zero bytes. An explicit "" is still allowed.
+            m := jsonpkg.Parse of map of string to any from argsJSON onerr return ReadFile{}, errs.Wrapf(error, "write_file: bad args")
+            _, hasContent := m["content"]
+            if not hasContent
+                return ReadFile{}, error "write_file: missing content"
             return WriteFile{path: a.Path, content: a.Content}, empty
         when LocalTool.ListDir
             # list_dir tolerates empty argsJSON — defaults to "."
@@ -345,28 +358,58 @@ func localSearchFiles(lt: LocalTools, pattern: string) (string, error)
     out := shell.New("find", sandboxPath)
         |> .Flag("-name", pattern)
         |> .Execute()
-    stdout := out |> switch as r
-        when shell.Succeeded
-            r.Stdout as string
-        when shell.Failed
-            r.Error.Stdout as string
-
-    return formatRelativeMatches(stdout, sandboxPath), empty
+    if out is shell.Succeeded as ok
+        return formatRelativeMatches(ok.Stdout as string, sandboxPath), empty
+    if out is shell.Failed as fail
+        if strpkg.TrimSpace(fail.Error.Stdout as string) isnt empty
+            # Partial results (e.g. some directories unreadable) — still useful.
+            return formatRelativeMatches(fail.Error.Stdout as string, sandboxPath), empty
+        stderr := strpkg.TrimSpace(fail.Error.Stderr as string)
+        if stderr is empty
+            stderr = "find exited {fail.Error.ExitCode}"
+        return "", error "search_files: {stderr}"
+    return "", error "search_files: unexpected shell result"
 
 func localGrepFiles(lt: LocalTools, pattern: string, searchPath: string) (string, error)
     sandboxPath := lt.Box.Path
     fullPath := filepath.Join(sandboxPath, searchPath)
     rel := filepath.Rel(sandboxPath, fullPath) onerr return "", error "grep_files: invalid path"
-    if strpkg.HasPrefix(rel, "..")
+    # rel == ".." or a leading "../" means the target escaped the sandbox.
+    # A plain HasPrefix("..") would also reject legitimate names like "..hidden".
+    if rel equals ".." or strpkg.HasPrefix(rel, "../")
         return "", error "grep_files: path escapes sandbox"
-    out := shell.New("grep", "-r", "-n", pattern, fullPath) |> .Execute()
-    stdout := out |> switch as r
-        when shell.Succeeded
-            r.Stdout as string
-        when shell.Failed
-            r.Error.Stdout as string
+    # -e keeps a leading-dash pattern from being parsed as grep flags;
+    # -I skips binary files; exit 1 means "no matches", exit >= 2 is an error.
+    out := shell.New("grep", "-r", "-n", "-I", "-e", pattern, "--", fullPath) |> .Execute()
+    if out is shell.Succeeded as ok
+        return formatRelativeMatches(ok.Stdout as string, sandboxPath), empty
+    if out is shell.Failed as fail
+        if fail.Error.ExitCode equals 1
+            return "(no matches)", empty
+        stderr := strpkg.TrimSpace(fail.Error.Stderr as string)
+        if stderr is empty
+            stderr = "grep exited {fail.Error.ExitCode}"
+        return "", error "grep_files: {stderr}"
+    return "", error "grep_files: unexpected shell result"
 
-    return formatRelativeMatches(stdout, sandboxPath), empty
+# argWithinSandbox reports whether a command argument resolves to a path
+# inside the sandbox. Absolute paths must be within the sandbox root;
+# relative paths must not escape it. Non-path arguments (numbers, flags,
+# globs, regexes) pass through — only values that resolve outside are
+# rejected. Note: this confines path-like arguments; it is not a VM
+# boundary (allowlisted binaries can still run subcommands, e.g. git).
+func argWithinSandbox(sandboxPath: string, arg: string) bool
+    if arg is empty
+        return true
+    base := filepath.Clean(sandboxPath)
+    if base equals "/"
+        return true
+    full := filepath.Clean(arg)
+    if not filepath.IsAbs(arg)
+        full = filepath.Join(base, arg)
+    if full equals base
+        return true
+    return strpkg.HasPrefix(full, base + "/")
 
 # formatRelativeMatches trims the sandbox prefix from each non-empty line of `stdout`
 # so paths shown to the LLM are sandbox-relative, not absolute.
@@ -384,6 +427,11 @@ func localRunCommand(lt: LocalTools, cmd: string, args: list of string) (string,
     if not lt.AllowedCmds[cmd]
         return "", error "run_command: '{cmd}' is not in the allowed command list"
     sandboxPath := lt.Box.Path
+    # Confine path-like arguments to the sandbox: reject absolute paths
+    # outside it and relative paths that escape it (e.g. "../..").
+    for _, arg in args
+        if not argWithinSandbox(sandboxPath, arg)
+            return "", error "run_command: argument '{arg}' escapes the sandbox"
     out := shell.New(cmd, many args) |> .Dir(sandboxPath) |> .Execute()
     stdout := ""
     stderr := ""

@@ -11,7 +11,6 @@ import "io"
 import "os"
 import "stdlib/cli"
 import "stdlib/color"
-import "stdlib/errors" as errs
 import "stdlib/fetch"
 import "stdlib/files"
 import "stdlib/input"
@@ -88,7 +87,7 @@ func dispatchSubcommand(cmd: string, flagSchema: bool) (bool, error)
 # ---- Agent mode ----
 
 func cmdRun(positional: list of string, flagModel: string, flagChat: bool, flagRaw: bool, flagTools: bool, flagSystem: string) error
-    cfg := loadConfig()
+    cfg := loadConfig() onerr return
     if flagModel isnt empty
         cfg.Model = flagModel
     validateConfig(cfg) onerr return
@@ -110,7 +109,7 @@ func cmdRun(positional: list of string, flagModel: string, flagChat: bool, flagR
     return runOneShot(ctx, a, prompt, flagRaw, flagTools)
 
 func buildAgent(ctx: context.Context, cfg: Config, flagSystem: string) (reference Agent, error)
-    bridge := connectBridges(ctx, cfg.MCPServers) onerr return empty, errs.Wrap(error, "connecting to MCP servers")
+    bridge := connectBridges(ctx, cfg.MCPServers)
 
     if cfg.BuiltInTools
         registerLocalTools(bridge, cfg) onerr
@@ -127,15 +126,23 @@ func buildAgent(ctx: context.Context, cfg: Config, flagSystem: string) (referenc
     if flagSystem isnt empty
         a.SystemPrompt = flagSystem
 
+    # Base system prompt: explicit override wins; otherwise the sandboxed-tools
+    # prompt when tools are available, a plain one when nothing is wired up
+    # (claiming tool access with no tools just confuses the model).
+    base := a.SystemPrompt
+    if base is empty
+        if bridgeToolCount(bridge) > 0
+            base = defaultSystemPrompt
+        else
+            base = noToolsSystemPrompt
+
     # Load AGENTS.md from cwd if present — gives the LLM project context
     agentsDoc := files.ReadStringOr("AGENTS.md", "")
     if agentsDoc isnt empty
-        base := a.SystemPrompt
-        if base is empty
-            base = defaultSystemPrompt
-        a.SystemPrompt = "{base}\n\n# Project Context (AGENTS.md)\n\n{agentsDoc}"
+        base = "{base}\n\n# Project Context (AGENTS.md)\n\n{agentsDoc}"
         if isTTYErr()
             cli.Error(color.Dim("Loaded AGENTS.md from current directory"))
+    a.SystemPrompt = base
 
     return a, empty
 
@@ -182,16 +189,18 @@ type ModelsResponse
     Data: list of ModelEntry as "data"
 
 func cmdListModels() error
-    cfg := loadConfig()
-    if resolveAPIKey(cfg) is empty
-        return error "LLM API key required"
+    cfg := loadConfig() onerr return
 
+    # Ollama and custom providers may run without an API key — send the
+    # request without auth instead of failing before we try.
+    key := resolveAPIKey(cfg)
     url := "{resolveBaseURL(cfg)}{resolveModelsPath(cfg)}"
     var models: ModelsResponse
     req := fetch.New(url)
-        |> fetch.BearerAuth(resolveAPIKey(cfg))
         |> fetch.Retry(3, 500)
         |> fetch.OnSuccess of ModelsResponse from reference of models
+    if key isnt empty
+        req = fetch.BearerAuth(req, key)
     resp := req |> fetch.Do()
 
     if resp.StatusCode isnt 200
@@ -208,7 +217,7 @@ func cmdListModels() error
     return empty
 
 func cmdListTools(showSchema: bool) error
-    cfg := loadConfig()
+    cfg := loadConfig() onerr return
     ctx := context.Background()
 
     bridge := connectBridges(ctx, cfg.MCPServers) onerr return
@@ -229,7 +238,7 @@ func cmdListTools(showSchema: bool) error
     return empty
 
 func cmdHealth() error
-    cfg := loadConfig()
+    cfg := loadConfig() onerr return
     ctx := context.Background()
 
     # LLM endpoint
@@ -254,8 +263,11 @@ func cmdHealth() error
         else
             print("{color.BrightRed("x")} HTTP {resp.StatusCode}")
 
-    # MCP Servers
-    for name, mcfg in cfg.MCPServers
+    # MCP servers — iterate in sorted order; a server that fails to connect
+    # is reported as a failure, not "ok 0 tools" (connectBridges only warns
+    # on stderr, so it records failures in bridge.Failed).
+    for _, name in sortedMCPNames(cfg.MCPServers)
+        mcfg := cfg.MCPServers[name]
         fmt.Print("{name} MCP ({mcfg.URL})  ") onerr discard
         if mcfg.Disabled
             print(color.Dim("disabled"))
@@ -267,13 +279,22 @@ func cmdHealth() error
         if bridgeErr isnt empty
             print("{color.BrightRed("x")} {bridgeErr}")
         else
-            print("{color.Green("ok")} {bridgeToolCount(bridge)} tools")
-            closeBridges(bridge)
+            fail, didFail := bridge.Failed[name]
+            if didFail
+                print("{color.BrightRed("x")} {fail}")
+            else
+                print("{color.Green("ok")} {bridgeToolCount(bridge)} tools")
+                closeBridges(bridge)
 
     return empty
 
 func cmdConfigure() error
-    cfg := loadConfig()
+    # A broken config.json must not lock the user out of the one subcommand
+    # that fixes it — fall back to defaults with a warning.
+    cfg, cfgErr := loadConfig()
+    if cfgErr isnt empty
+        cli.Error(color.Dim("warning: {cfgErr} — starting from built-in defaults"))
+        cfg = defaultConfig()
 
     f := input.NewForm()
     f.Text("provider", "Provider [openwebui|hetzner|openai|ollama|custom] [{cfg.Provider}]: ")
@@ -363,8 +384,11 @@ func runChat(ctx: context.Context, a: reference Agent, initialPrompt: string)
 func gatherPrompt(args: list of string) string
     prompt := ""
 
-    # Simple heuristic: assume not a terminal if TERM is empty and no args
-    if not isTerminal(os.Stdin) and (args is empty)
+    # Read piped stdin whenever it isn't a terminal — pipe context and a
+    # positional prompt combine, e.g. `cat error.log | owui "diagnose this"`
+    # sends the file contents plus the prompt. (io.ReadAll returns immediately
+    # at EOF for empty pipes, so a non-terminal stdin with no data is fine.)
+    if not isTerminal(os.Stdin)
         data := io.ReadAll(os.Stdin) onerr
             fallback empty list of byte
 

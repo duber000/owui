@@ -11,10 +11,14 @@
 petiole main
 
 import "os"
+import "stdlib/cli"
+import "stdlib/color"
 import "stdlib/env"
+import "stdlib/errors" as errs
 import "stdlib/files"
 import "stdlib/json" as jsonpkg
 import "stdlib/string" as strpkg
+import "strconv"
 
 type MCPServerConfig
     URL: string as "url"
@@ -37,12 +41,17 @@ enum Provider: string
 # ProviderPreset carries the endpoint shape for one provider. Empty strings
 # mean "no preset for this field" — the caller falls back to overrides or
 # defaults. APIKeyEnv names the conventional env var the provider reads its
-# key from (empty = no conventional var).
+# key from (empty = no conventional var). MaxTokens is the preset's default
+# max_tokens (0 = omit the field, letting the endpoint choose) — raised only
+# for Hetzner, whose Qwen model serves a 256K context and needs a large
+# reasoning budget; sending an unservable max_tokens (e.g. OpenAI's ~16K cap)
+# gets the whole request rejected.
 type ProviderPreset
     BaseURL: string
     ChatPath: string
     ModelsPath: string
     APIKeyEnv: string
+    MaxTokens: int
 
 func providerPreset(p: Provider) ProviderPreset
     switch p
@@ -59,6 +68,7 @@ func providerPreset(p: Provider) ProviderPreset
                 ChatPath: "/chat/completions",
                 ModelsPath: "/models",
                 APIKeyEnv: "HETZNER_VLLM_API_KEY",
+                MaxTokens: 131072,
             }
         when Provider.OpenAI
             return ProviderPreset{
@@ -97,6 +107,8 @@ type Config
     TerminalMCPAPIKey: string as "terminal_mcp_api_key"
     BuiltInTools: bool as "built_in_tools"
     MaxToolRounds: int as "max_tool_rounds"
+    # MaxTokens caps the completion (0 = provider preset default, or omit).
+    MaxTokens: int as "max_tokens"
     SandboxDir: string as "sandbox_dir"
     IPAllowList: list of string as "ip_allow"
     IPBlockList: list of string as "ip_block"
@@ -106,8 +118,9 @@ func defaultConfigPath() string
     home := os.UserHomeDir() onerr ""
     return files.Join(home, ".config", "owui", "config.json")
 
-func loadConfig() Config
-    cfg := Config{
+# defaultConfig is the in-code baseline every config source is layered onto.
+func defaultConfig() Config
+    return Config{
         Provider: Provider.OpenWebUI.String(),
         TerminalMCPURL: "http://127.0.0.1:9000/mcp",
         Model: "llama3.1",
@@ -119,13 +132,17 @@ func loadConfig() Config
         CmdAllowList: empty list of string,
     }
 
+func loadConfig() (Config, error)
+    cfg := defaultConfig()
+
     # Try loading from config file
     data := files.ReadStringOr(defaultConfigPath(), "") onerr ""
     if data isnt empty
         # Decode into the existing cfg rather than replacing it, so fields
         # absent from the JSON file keep their in-code defaults instead of
         # being zeroed. Env vars still override on top below.
-        jsonpkg.ParseInto(data, reference of cfg) onerr panic "invalid config.json: {error}"
+        jsonpkg.ParseInto(data, reference of cfg) onerr
+            return Config{}, errs.Wrap(error, "invalid {defaultConfigPath()}")
 
     if cfg.MCPServers equals empty
         cfg.MCPServers = make(MCPServers)
@@ -145,6 +162,11 @@ func loadConfig() Config
     cfg.TerminalMCPURL = envOr("OWUI_TERMINAL_MCP_URL", cfg.TerminalMCPURL)
     cfg.TerminalMCPAPIKey = envOr("OWUI_TERMINAL_MCP_API_KEY", cfg.TerminalMCPAPIKey)
     cfg.SandboxDir = envOr("OWUI_SANDBOX_DIR", cfg.SandboxDir)
+    maxTokensEnv := env.GetOr("OWUI_MAX_TOKENS", "")
+    if maxTokensEnv isnt empty
+        n := strconv.Atoi(maxTokensEnv) onerr 0
+        if n > 0
+            cfg.MaxTokens = n
 
     if cfg.TerminalMCPURL isnt empty
         # Keep an explicit terminal disable from mcp_servers while applying
@@ -154,7 +176,7 @@ func loadConfig() Config
         terminal.APIKey = cfg.TerminalMCPAPIKey
         cfg.MCPServers["terminal"] = terminal
 
-    return cfg
+    return cfg, empty
 
 func envOr(name: string, defaultValue: string) string
     v := env.GetOr(name, "")
@@ -162,12 +184,18 @@ func envOr(name: string, defaultValue: string) string
         return v
     return defaultValue
 
-# resolveProvider parses cfg.Provider, falling back to OpenWebUI on a bad
-# value so a typo in config never silently breaks the agent.
+# resolveProvider parses cfg.Provider. A bad value falls back to OpenWebUI
+# with a warning — a typo shouldn't silently point the agent somewhere
+# unexpected without saying so.
 func resolveProvider(cfg: Config) Provider
     if cfg.Provider is empty
         return Provider.OpenWebUI
-    p := ParseProvider(cfg.Provider) onerr return Provider.OpenWebUI
+    p := ParseProvider(cfg.Provider) onerr
+        cli.Error(
+            color.Dim("warning: unknown provider '{cfg.Provider}' — falling back to openwebui"),
+        )
+        return Provider.OpenWebUI
+
     return p
 
 # resolveBaseURL picks the effective LLM base URL: explicit override >
@@ -181,6 +209,13 @@ func resolveBaseURL(cfg: Config) string
     if p equals Provider.OpenWebUI and cfg.WebUIURL isnt empty
         return strpkg.TrimRight(cfg.WebUIURL, "/")
     return strpkg.TrimRight(providerPreset(p).BaseURL, "/")
+
+# resolveMaxTokens picks the effective max_tokens: explicit config/env >
+# provider preset (0 = omit the field so the endpoint picks).
+func resolveMaxTokens(cfg: Config) int
+    if cfg.MaxTokens > 0
+        return cfg.MaxTokens
+    return providerPreset(resolveProvider(cfg)).MaxTokens
 
 # resolveChatPath picks the effective chat-completions path: explicit
 # override > provider preset.
@@ -217,11 +252,20 @@ func saveConfig(cfg: Config) error
     return empty
 
 func validateConfig(cfg: Config) error
-    # Ollama runs locally without an API key; custom providers may too.
-    if resolveProvider(cfg) equals Provider.Ollama
-        return empty
-    if resolveProvider(cfg) equals Provider.Custom
+    if cfg.MaxToolRounds < 0
+        return error "max_tool_rounds must be >= 0 (0 = default of 15)"
+    p := resolveProvider(cfg)
+    if p equals Provider.Custom and (resolveBaseURL(cfg) is empty)
+        return error "provider 'custom' requires llm_base_url to be set (config file or OWUI_LLM_BASE_URL)"
+    # Ollama and custom providers may run without an API key, and so may
+    # Open WebUI with auth disabled — the health check probes keyless too.
+    # Warn rather than hard-fail; a wrong guess surfaces as a 401/403 from
+    # the endpoint itself.
+    if p equals Provider.Ollama or p equals Provider.Custom
         return empty
     if resolveAPIKey(cfg) is empty
-        return error "LLM API key required: set OWUI_LLM_API_KEY (or the provider's env var), or run `owui configure`"
+        cli.Error(color.Dim(
+            "warning: no API key configured for provider '{cfg.Provider}' — will work only if the endpoint allows anonymous access (set OWUI_LLM_API_KEY or run `owui configure`)",
+        ))
+        return empty
     return empty

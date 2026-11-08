@@ -85,6 +85,7 @@ override only the fields listed in the table above.
 | `mcp_servers` | `{}` | Named MCP server configurations. Each server accepts `url`, optional `api_key`, and optional `disabled`. |
 | `built_in_tools` | `true` | Enables the built-in sandboxed file and command tools. Set to `false` to expose MCP tools only. |
 | `max_tool_rounds` | `15` | Maximum LLM tool-call rounds per request. |
+| `max_tokens` | provider preset | Max completion tokens. The hetzner preset defaults to `131072` (reasoning budget for Qwen); other presets omit the field so the endpoint picks. Override per config file or `OWUI_MAX_TOKENS`. |
 | `sandbox_dir` | current working directory | Sandbox root for built-in file and command tools. |
 | `cmd_allow` | built-in allowlist | Commands permitted through `run_command`. Replaces the default allowlist when non-empty. |
 | `ip_allow` | `[]` | Allowed IP/CIDR ranges for the built-in tools' network guard. |
@@ -191,6 +192,7 @@ owui health    # check connectivity to Open WebUI and each MCP server
 | `OWUI_TERMINAL_MCP_URL` | `http://127.0.0.1:9000/mcp` | Open Terminal MCP endpoint |
 | `OWUI_TERMINAL_MCP_API_KEY` | | API key for authenticated MCP servers |
 | `OWUI_SANDBOX_DIR` | cwd | Root directory for built-in file/shell tools |
+| `OWUI_MAX_TOKENS` | provider preset | Max completion tokens (`0`/unset = preset default) |
 
 ## Architecture
 
@@ -235,7 +237,7 @@ Set `"built_in_tools": false` in `~/.config/owui/config.json` to disable all bui
 ### Security
 
 - **Path confinement** — `stdlib/sandbox` uses `os.Root` (kernel-level) so file tools cannot escape the sandbox root, even with symlinks or `..` traversal.
-- **Command allowlist** — `run_command` rejects any binary not in the configured allowlist.
+- **Command allowlist** — `run_command` rejects any binary not in the configured allowlist, and also rejects arguments that resolve outside the sandbox (absolute paths beyond the sandbox root, or `..` escapes) — so allowlisted binaries can't be pointed at the rest of the filesystem. This is best-effort argument confinement, not a VM boundary: allowlisted binaries can still execute subcommands or hooks (e.g. `git -c alias.x='!sh x'`). For stronger isolation set `built_in_tools: false` and rely on an MCP server you control.
 - **Network guard** — set `ip_allow` or `ip_block` in the config file to restrict outbound HTTP from built-in tools via `stdlib/netguard` (includes DNS rebinding protection).
 
 ### Multi-server MCP

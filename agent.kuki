@@ -15,6 +15,8 @@ import "time"
 
 const defaultSystemPrompt: string = "You are a helpful assistant with access to a sandboxed Linux environment via tool calls. You can execute commands, read/write files, search, and manage the filesystem. Use these tools to help the user accomplish their goals. Be concise in your explanations but thorough in your tool usage."
 
+const noToolsSystemPrompt: string = "You are a helpful assistant. No tools are connected in this session — answer directly from your knowledge. If the user asks for file or shell operations, explain that no tools are wired up instead of claiming you can do them."
+
 type Agent
     Bridge: reference Bridge
     Config: Config
@@ -42,7 +44,7 @@ func runAgent(ctx: context.Context, a: reference Agent, userPrompt: string, hist
     tools := bridgeTools(a.Bridge)
 
     for round from 0 to maxRounds
-        client := buildLLMClient(a, messages, tools)
+        client := buildLLMClient(ctx, a, messages, tools)
         events, collect := chat.SendStream(client)
 
         for evt in events
@@ -62,6 +64,12 @@ func runAgent(ctx: context.Context, a: reference Agent, userPrompt: string, hist
         if not chat.HasToolCalls(comp)
             return reference of RunResult{Content: content, Messages: messages, Rounds: round + 1}, empty
 
+        # Don't execute tool calls on the final round — their results could
+        # never be returned to the model, so the side effects would be pure
+        # waste (and a stray `rm` still lands on disk).
+        if round equals maxRounds - 1
+            return empty, error "agent hit max rounds ({maxRounds}) without completing"
+
         messages = handleToolCalls(ctx, a, messages, comp, content)
 
     return empty, error "agent hit max rounds ({maxRounds}) without completing"
@@ -77,20 +85,23 @@ func initMessages(a: reference Agent, userPrompt: string, history: list of chat.
 
     return append(messages, chat.Message{Role: "user", Content: userPrompt})
 
-func buildLLMClient(a: reference Agent, messages: list of chat.Message, tools: list of chat.Tool) chat.Client
-    # Qwen3.6 on Hetzner has a 262,144-token context window (256K). Setting
-    # max_tokens to 131072 (128K) leaves 128K for the prompt and gives the
-    # model ample room to reason before producing content. Without a generous
-    # budget, reasoning models exhaust small limits on thinking alone and
-    # return content="" with finish_reason=length.
+func buildLLMClient(runCtx: context.Context, a: reference Agent, messages: list of chat.Message, tools: list of chat.Tool) chat.Client
+    # max_tokens comes from the provider preset or an explicit `max_tokens`
+    # override — NOT a hardcoded value: Hetzner's Qwen needs a large reasoning
+    # budget (131072 against a 256K context), but OpenAI/Ollama cap or reject
+    # larger limits, so other presets omit the field entirely. Callers may
+    # also raise/lower it per config.
     client := chat.New("")
         |> chat.Model(a.Config.Model)
         |> chat.BaseURL(resolveBaseURL(a.Config))
         |> chat.Path(resolveChatPath(a.Config))
         |> chat.APIKey(resolveAPIKey(a.Config))
         |> chat.Messages(messages)
-        |> chat.MaxTokens(131072)
-        |> chat.WithContext(ctx.WithTimeout(ctx.Background(), 30 * time.Minute))
+        |> chat.WithContext(ctx.WithTimeout(ctx.FromContext(runCtx), 30 * time.Minute))
+
+    maxTokens := resolveMaxTokens(a.Config)
+    if maxTokens > 0
+        client = chat.MaxTokens(client, maxTokens)
 
     for t in tools
         client = chat.AddTool(client, t.Function.Name, t.Function.Description, t.Function.Parameters)
