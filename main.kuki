@@ -187,17 +187,16 @@ func cmdListModels() error
         return error "LLM API key required"
 
     url := "{resolveBaseURL(cfg)}{resolveModelsPath(cfg)}"
-    resp := fetch.New(url)
+    var models: ModelsResponse
+    req := fetch.New(url)
         |> fetch.BearerAuth(resolveAPIKey(cfg))
         |> fetch.Retry(3, 500)
-        |> fetch.Do()
+        |> fetch.OnSuccess of ModelsResponse from reference of models
+    resp := req |> fetch.Do()
 
     if resp.StatusCode isnt 200
         body := fetch.Bytes(resp) onerr return error "HTTP {resp.StatusCode}"
         return error "HTTP {resp.StatusCode}: {body as string}"
-
-    models := ModelsResponse{}
-    resp.Decode(reference of models)
 
     print(color.Bold(color.Cyan("Available models:")))
     for _, m in models.Data
